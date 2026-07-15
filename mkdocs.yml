@@ -1,0 +1,49 @@
+site_name: Flutter Zero 文档
+site_description: Flutter Zero 企业级 MVI 模板 —— 架构、快速上手、Effect 与 Notifiers 系统设计
+# repo_url: https://github.com/<your-org>/flutter_zero_doc   # 待你补充
+# edit_uri: edit/main/docs
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: 切换到浅色模式
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+
+nav:
+  - 首页: index.md
+  - 架构说明: architecture/index.md
+  - 快速上手: getting-started/index.md
+  - Effect 与 Notifiers: effect-system/index.md
+  - CLI 参考: cli/README.md
+  - 发布与版本:
+      - 发布流程: release.md
+      - CLI 版本管理: versioning-cli.md
+      - 模板版本管理: versioning-template.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
