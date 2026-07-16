@@ -8,8 +8,6 @@ Flutter Zero 是一套 **企业级 Flutter MVI 模板**，由三个独立仓库�
 | `flutter_zero_cli` | 脚手架工具 `fluzer`（创建项目、生成功能模块、检查更新） |
 | `flutter_zero_template` | 纯模板源（Mason Brick），`fluzer` 由此渲染出项目与模块骨架 |
 
-> 文档站地址（占位，待补充）：`https://<your-docs-site>/`
-
 ---
 
 ## 设计思想
