@@ -47,4 +47,4 @@
 
 ## 相关文档
 
-- CLI 版本规范见 `../flutter_zero_cli/VERSIONING.md`。
+- CLI 版本规范见 [CLI版本管理](versioning-cli.md)。

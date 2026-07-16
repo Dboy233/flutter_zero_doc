@@ -55,4 +55,4 @@ CLI 运行时的模板来源解析流程（`lib/src/template/template_source.dar
 
 ## 相关文档
 
-- 模板版本规范见 `../flutter_zero_template/VERSIONING.md`。
+- 模板版本规范见 [模板版本管理](versioning-template.md)。

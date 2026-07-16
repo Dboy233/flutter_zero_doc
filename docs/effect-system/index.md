@@ -2,8 +2,6 @@
 
 本文档描述两件事：**Effect 系统**（一次性 UI 副作用的通道）与 **Notifiers 系统**（Toast / Loading 等通知服务的封装）。两者通过「Effect 处理器调用 Notifier 服务」衔接。所有描述基于当前代码。
 
-> 网络层（`DioClient`、`ErrorHandler`）与错误归一化不在本文范围，未来可能调整；业务侧只需关心 Repository 抛出的异常类型。
-
 ---
 
 ## 1. 为什么需要 Effect 系统
@@ -24,22 +22,23 @@ abstract class UIEffect {
 }
 
 final class ToastEffect extends UIEffect {
-  const ToastEffect({this.message, this.messageCode, this.extra});
-  final String? message;       // 固定文本
-  final String? messageCode;    // i18n 码，由 UI 层解析
+  const ToastEffect({this.message, this.l10nCode, this.code, this.extra});
+  final String? message;   // 固定/服务端文本，优先显示
+  final String? l10nCode;  // 开发者自定义本地化键，由业务 handle 翻译
+  final int? code;         // 内部错误码（HTTP 状态码或 AppErrorCodes 哨兵码）
   final Object? extra;
 }
 
 final class DialogEffect extends UIEffect {
   const DialogEffect({required this.type, this.extra});
-  final String type;            // 业务类型，如 'refresh_success'
+  final String type;       // 业务类型标识，如 'retry' / 'refresh_success'
   final Object? extra;
 }
 
 final class LoadingEffect extends UIEffect {
   const LoadingEffect({required this.show, this.extra});
-  final bool show;               // true 显示 / false 隐藏
-  final Object? extra;          // 可选状态文案（String）
+  final bool show;         // true 显示 / false 隐藏
+  final Object? extra;     // 可选状态文案（String），框架默认 handle 透传
 }
 ```
 
@@ -53,11 +52,7 @@ final class LoadingEffect extends UIEffect {
 
 ```dart
 mixin BlocEffectMixin<S> on BlocBase<S> {
-  final StreamController<UIEffect> _effectController =
-      StreamController<UIEffect>.broadcast();
-
   Stream<UIEffect> get effectStream => _effectController.stream;
-
   void emitEffect(UIEffect effect) => _effectController.add(effect);
 }
 ```
@@ -66,9 +61,10 @@ BLoC 用法：
 
 ```dart
 class HomeBloc extends Bloc<HomeEvent, HomeState>
-    with BlocAwaitMixin, BlocEffectMixin, BlocCancelTokenMixin {
+    with BlocAwaitMixin, BlocEffectMixin, BlocCancelTokenMixin, BlocErrorHandlerMixin {
   // ...
-  emitEffect(const ToastEffect(messageCode: 'homeLoadFailed'));
+  emitEffect(const ToastEffect(l10nCode: 'homeLoadFailed'));
+  // 或：emitEffect(const ToastEffect(message: '加载失败'));
 }
 ```
 
@@ -85,19 +81,8 @@ typedef EffectHandle = bool Function(BuildContext context, UIEffect effect);
 
 class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
   const EffectListener({required this.child, this.effectsHandles = const []});
-
-  @override
-  Widget build(BuildContext context) {
-    // 业务处理器在前，框架默认 handle 在链尾兜底
-    final handles = [
-      ...effectsHandles,
-      defaultToastHandle,
-      defaultDialogHandle,
-      defaultLoadingHandle,
-    ];
-    // ...订阅 bloc.effectStream，对每条 effect 顺序调用 handle，
-    //     第一个返回 true 的处理器胜出，命中即停止。
-  }
+  // build 内把业务 handles 放在链首，框架默认 handle 追加在链尾：
+  //   [...effectsHandles, defaultToastHandle, defaultDialogHandle, defaultLoadingHandle]
 }
 ```
 
@@ -115,11 +100,15 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 | Handle | 认领类型 | 行为 |
 |--------|----------|------|
-| `defaultToastHandle` | `ToastEffect` | 委托注入的 `ToastService`；`message!=null` 直接显示，`messageCode!=null` 时框架级兜底原样显示（业务应自定义 handle 完成 i18n 映射） |
+| `defaultToastHandle` | `ToastEffect` | 优先级：**`message` → `code` → `l10nCode`**。`message` 直接显示；`code` 按 `AppErrorCodes` 映射兜底文案；`l10nCode` **不被默认 handle 处理**，必须由业务 handle 翻译（未处理则 debug 告警、release 静默） |
 | `defaultDialogHandle` | `DialogEffect` | 为未被业务认领的弹窗渲染最小通用对话框，避免副作用被静默丢弃 |
 | `defaultLoadingHandle` | `LoadingEffect` | 委托注入的 `LoadingService`；`show=true` 调 `svc.show(status:)`，否则 `svc.dismiss()` |
 
 业务层只需 `emitEffect(const LoadingEffect(show: true))` 即可控制全局 loading，无需关心底层是 EasyLoading 还是其它实现。
+
+### `defaultToastHandle` 的 code 映射
+
+`code` 按 `AppErrorCodes`（负数内部码 + 常见 HTTP 4xx/5xx）映射为本地化文案，未列出的码走 `unknownErrorCode` 兜底。详见 [错误处理与 Result](error-handling.md)。
 
 ---
 
@@ -129,15 +118,12 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 ```dart
 bool homeEffectHandle(BuildContext context, UIEffect effect) {
-  if (effect is ToastEffect) {
-    if (effect.message != null) {
-      getIt<ToastService>().showInfo(effect.message!);
-    } else if (effect.messageCode != null) {
-      getIt<ToastService>().showError(
-        _mapToastMessageCode(effect.messageCode!, context.l),
-      );
+  if (effect is ToastEffect && effect.l10nCode != null) {
+    final text = _mapToastMessageCode(effect.l10nCode!, context.l);
+    if (text != null) {
+      getIt<ToastService>().showError(text);
+      return true; // 认领
     }
-    return true; // 认领
   }
   if (effect is DialogEffect) {
     return _handleDialog(context, effect.type, effect.extra);
@@ -145,18 +131,18 @@ bool homeEffectHandle(BuildContext context, UIEffect effect) {
   return false; // 其余交给框架默认 handle
 }
 
-String _mapToastMessageCode(String code, AppLocalizations l) =>
-    switch (code) {
-      'homeLoadFailed' => l.homeLoadFailed,
-      _ => l.homeGenericError,
-    };
+String? _mapToastMessageCode(String code, AppLocalizations l) => switch (code) {
+  'homeLoadFailed' => l.homeLoadFailed,
+  _ => null,
+};
 ```
 
 要点：
 
 - 用 `is` 认领自己关心的类型；**不穷尽 `switch`**——新增 `UIEffect` 子类无需回来补 case。
-- `messageCode → 本地化文本` 的映射是业务职责（i18n 方案自选），框架默认 handle 不替你做这件事。
+- `l10nCode → 本地化文本` 的映射是业务职责（i18n 方案自选），框架默认 handle 不替你做这件事。
 - 业务 handle 在 `EffectListener.effectsHandles` 传入（见 `home_page.dart` / 生成的 `<name>_page.dart`），排在链首优先胜出。
+- 若直接用 `ToastEffect(message: '...')` 或 `ex.toToastEffect()`（带 `code`），**无需**任何业务 handle，默认 handle 即可显示。
 
 ---
 
@@ -182,17 +168,14 @@ Notifiers 解决的是「**无 `BuildContext` 的环境（BLoC）如何驱动需
 abstract class ToastService {
   final StreamController<ToastEvent> _effects =
       StreamController<ToastEvent>.broadcast();
-
   Stream<ToastEvent> get effects => _effects.stream;
 
-  // 统一 API：调用方只关心这些
   void showError(String message) => _effects.add(ToastEvent.error(message));
   void showSuccess(String message) => _effects.add(ToastEvent.success(message));
   void showInfo(String message) => _effects.add(ToastEvent.info(message));
   void showWarning(String message) => _effects.add(ToastEvent.warning(message));
   void dismissAll() => _effects.add(const ToastEvent.dismiss());
 
-  // 子类契约
   Widget build(BuildContext context, Widget child);   // 用 wrapper 包裹 child
   void onEvent(BuildContext context, ToastEvent event); // 事件到达时渲染
 }
@@ -236,7 +219,7 @@ MaterialApp.router(
 Effect 是「意图」，Notifiers 是「执行者」：
 
 ```
-BLoC: emitEffect(ToastEffect(messageCode:'homeLoadFailed'))
+BLoC: emitEffect(ToastEffect(l10nCode:'homeLoadFailed'))
         │
 EffectListener 责任链
         │  homeEffectHandle 认领 → getIt<ToastService>().showError(本地化文本)

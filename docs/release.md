@@ -18,9 +18,10 @@
 | 模板分发机制（registry） | `flutter_zero_template/template_registry.json` |
 
 **版本规则一句话**：
-- **PATCH** = 修 bug / 内容小修，不改契约 → CLI 躺着不动
-- **MINOR** = 向下兼容新增（带默认值的可选变量、可选 brick） → CLI 躺着不动
-- **MAJOR** = 破坏性（改 brick 变量契约 / 生成代码结构 / DI 锚点） → 必 bump `minCliVersion`
+
+- **PATCH(0.0.x)** = 修 bug / 内容小修，不改契约 → CLI 躺着不动
+- **MINOR(0.x.0)** = 向下兼容新增（带默认值的可选变量、可选 brick） → CLI 躺着不动
+- **MAJOR(x.0.0)** = 破坏性（改 brick 变量契约 / 生成代码结构 / DI 锚点） → 必 bump `minCliVersion`
 
 ---
 
@@ -71,8 +72,8 @@ mason make feature --name demo --package_name demo
 通过环境变量让 CLI 从本地加载模板（不触网）：
 ```bash
 cd flutter_zero_cli
-FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/main.dart new demo
-FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/main.dart create demo_app
+FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/fluzer.dart new demo
+FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/fluzer.dart create demo_app
 ```
 
 ---
@@ -96,7 +97,7 @@ dart test
 
 ### C1. 发布模板（核心步骤，通常独立于 CLI）
 
-1. **判定 bump**：按 `flutter_zero_template/VERSIONING.md` 决定 PATCH / MINOR / MAJOR。
+1. **判定 bump**：按 [模板版本管理](versioning-template.md) 决定 PATCH / MINOR / MAJOR。
 2. **打包**：
    ```bash
    cd flutter_zero_template
@@ -147,13 +148,15 @@ dart test
 ## 2. 发布前检查清单（Checklist）
 
 **模板发布前**
-- [ ] 按 `VERSIONING.md` 判定 bump 类型
+
+- [ ] 按 [模板版本管理](versioning-template.md) 判定 bump 类型
 - [ ] `bricks.zip` 已打包，顶层为 `bricks/`
 - [ ] GitHub Release 用**固定版本 URL**（非 `/latest`）
 - [ ] `template_registry.json` 已更新（PATCH/MINOR 改桶条目，MAJOR 新增条目）
 - [ ] `template_registry.json` 已推到 main
 
 **CLI 发布前**
+
 - [ ] `cliVersion` 常量与 `pubspec.yaml` 版本一致
 - [ ] `dart analyze` 0 issues
 - [ ] `dart test` 全绿
@@ -167,11 +170,13 @@ dart test
 ### 3.1 占位待替换（发布前必填）
 
 位置：`flutter_zero_cli/lib/src/template/template_source.dart`
+
 - `_templateRegistryUrl` → 真实 raw URL
   `https://raw.githubusercontent.com/OWNER/REPO/main/template_registry.json`
 - `_defaultTemplateZipUrl` → 真实 Release **固定版本** URL（作为拉取失败时的兜底）
 
 位置：`flutter_zero_cli/lib/src/version/cli_version.dart`
+
 - `cliVersion` → 与 `pubspec.yaml` 同步（每次 CLI 发版必改）
 
 ### 3.2 命令速查
@@ -180,11 +185,11 @@ dart test
 |------|------|
 | 同步模板 | `cd flutter_zero_template && dart run scripts/sync_project_brick.dart` |
 | 本地验证 brick | `mason make feature --name demo --package_name demo` |
-| CLI 本地加载模板 | `FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/main.dart new demo` |
+| CLI 本地加载模板 | `FLUZER_BRICKS_DIR=../flutter_zero_template/bricks dart run bin/fluzer.dart new demo` |
 | CLI 查版本更新 | `fluzer version`（发布后用全局命令） |
 | 发模板 | `zip -r bricks.zip bricks` + `gh release create vX.Y.Z bricks.zip` + 更新 registry + push |
 | 发 CLI | `dart pub publish` |
 
 ---
 
-> 文档维护：本流程随发布实践演进。若发现步骤与实际不符，优先更新本文与两份 `VERSIONING.md`。
+> 文档维护：本流程随发布实践演进。若发现步骤与实际不符，优先更新本文与两份 `versioning-xxx.md`。

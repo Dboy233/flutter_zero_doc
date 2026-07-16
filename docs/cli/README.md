@@ -1,117 +1,242 @@
-# fluzer
+# fluzer —— 脚手架 CLI
 
-Flutter Zero 模板项目脚手架工具 / CLI tool for scaffolding Flutter Zero projects
+`fluzer` 是 Flutter Zero 模板的命令行工具，负责两件事：
 
-## 快速开始 / Quick Start
+- **`create`**：从模板一键生成全新的 Flutter 项目（含完整 core 基础设施、示例模块、配置）。
+- **`new`**：在已有模板项目里新增功能模块骨架，并**自动注册到 DI**。
 
-### 开发模式 / Development
+另外提供 **`version`** 命令查看 CLI 自身版本并检查是否有更新。
+
+> 模板与 CLI 解耦：CLI 通过 Mason brick（在 `flutter_zero_template/bricks/` 下）渲染代码，brick 的变量契约与生成结构独立演进，模板可高频发版而不必升级 CLI。
+
+---
+
+## 1. 快速开始
+
+### 开发模式（在 `flutter_zero_cli` 目录内）
 
 ```bash
-dart run bin/main.dart new user
+dart run bin/fluzer.dart new user
+dart run bin/fluzer.dart create my_app
+dart run bin/fluzer.dart version
 ```
 
-### 全局安装 / Global Install
+### 全局安装
 
 ```bash
 dart pub global activate fluzer
 
-fluzer create my_app
+fluzer new user        # 新增功能模块
+fluzer create my_app   # 创建新项目
+fluzer version         # 查看版本 + 检查更新
+```
+
+> CLI 在 `pubspec.yaml` 中注册了可执行名 `fluzer`，因此 `global activate` 后可直接用 `fluzer` 调用。
+
+---
+
+## 2. 命令一览
+
+| 命令 | 作用 | 常用选项 |
+|------|------|----------|
+| `fluzer new <feature_name>` | 在当前模板项目内新增功能模块并注册 DI | `--build-runner` / `--no-build-runner` |
+| `fluzer create <project_name>` | 从模板创建全新 Flutter 项目 | `--org`、`--build-runner` / `--no-build-runner` |
+| `fluzer version` | 打印 CLI 版本并检查 pub.dev 更新 | — |
+
+---
+
+## 3. `new` —— 新增功能模块
+
+必须在 **Flutter Zero 模板项目根目录**（含 `flutter_zero_config.yaml`）下执行。
+
+执行流程：
+
+1. 校验功能名（必须是 `snake_case`，小写字母开头，例如 `user_profile`）。
+2. 检查 `lib/features/<name>/` 是否已存在。
+3. 用 Mason 渲染 `feature` brick（仅传 brick 声明的 `name` + `package_name` 变量，类名大小写由 brick 内 Mustache 过滤器处理）。
+4. 通过 `FeatureRegistration`（底层 `CodeMod`）把模块写入 `lib/core/di/injection_base.dart` 的 `registerFeatureModules()`。
+5. 按需运行 `build_runner`。
+
+```bash
 fluzer new user
+
+# 选项
+#   --build-runner      生成后运行 build_runner（默认启用）
+#   --no-build-runner   跳过 build_runner（之后可手动 dart run build_runner build）
 ```
 
-## 命令 / Commands
+> 生成的模块包含 `data/`、`domain/`、`presentation/` 骨架，并自动生成 `<name>_module.dart`。
+> 关于新增模块后如何写业务逻辑，见[《编写第一个功能模块》](../getting-started/your-first-feature.md)。
 
-### `new` — 新增功能模块 / Add feature module
+---
 
-在当前 `flutter_zero` 模板项目中生成功能模块骨架，并自动注册到 DI。
+## 4. `create` —— 创建新项目
 
-Generates a feature module skeleton in the current `flutter_zero` template project, and auto-registers it in DI.
+执行步骤：
 
-```bash
-fluzer new <feature_name>
-
-# 选项 / Options:
-#   --build-runner     生成后是否运行 build_runner（默认启用）/ Run build_runner after generation (default: true)
-#   --no-build-runner  跳过 build_runner / Skip build_runner
-```
-
-### `create` — 创建新项目 / Create new project
-
-从模板创建全新的 Flutter 项目，包含完整的 core 基础设施、示例模块和配置。
-
-Creates a new Flutter project from the template, with full core infrastructure, example modules, and configuration.
-
-执行步骤 / Steps:
-1. 校验项目名合法性 / Validate project name
-2. 复制模板目录到目标位置 / Copy template to target
-3. 全局替换包名 / Global package name replacement
-4. 重命名 .iml 文件 / Rename .iml file
-5. 执行 `flutter create . --org --project-name` / Run flutter create
-6. 清理 flutter create 生成的多余测试文件 / Clean up extra test file (widget_test.dart)
-7. 执行 `flutter pub get` / Run flutter pub get
-8. 执行 `flutter gen-l10n` / Run flutter gen-l10n
-9. 执行 `build_runner`（可选）/ Run build_runner (optional)
+1. 校验项目名（小写字母开头，只含小写字母、数字、下划线）。
+2. 用 Mason 渲染 `project` brick 到系统临时目录（变量仅 `name`）。
+3. 把 brick 生成的 `{{name}}` 子目录展平到目标项目目录。
+4. 执行 `flutter create . --org --project-name`。
+5. 清理 `flutter create` 生成的默认 `test/widget_test.dart`（模板自带 `home_page_test.dart`）。
+6. 执行 `flutter pub get`。
+7. 执行 `flutter gen-l10n`。
+8. 按需执行 `build_runner`。
 
 ```bash
 fluzer create my_app
 
-# 选项 / Options:
-#   --org <org>             组织名（默认 com.example，影响 bundle ID）/ Organization (default: com.example, affects bundle ID)
-#   --desc <description>    项目描述 / Project description
-#   --build-runner          生成后是否运行 build_runner（默认启用）/ Run build_runner after creation (default: true)
-#   --no-build-runner       跳过 build_runner / Skip build_runner
+# 选项
+#   --org <org>           组织标识（默认 com.example，影响 bundle ID）
+#   --build-runner        生成后运行 build_runner（默认启用）
+#   --no-build-runner     跳过 build_runner
 ```
 
-## 目录结构 / Project Structure
+> 注意：当前版本 `create` 不再接收 `--desc`（项目描述）。项目描述请在生成后手动编辑 `pubspec.yaml`。
+
+目标目录已存在时会报错并清理命令自身创建的半成品目录（**不会删除你已有的同名目录内容**——仅当目录由本次命令创建时才清理；若该目录原本就存在，`create` 会直接提示你换名，不做任何删除）。
+
+创建成功后提示后续步骤：`cd my_app` →（可选）`fluzer new my_feature` → `flutter run`。
+
+---
+
+## 5. `version` —— 查看版本与检查更新
+
+```bash
+fluzer version
+```
+
+- 打印 CLI 版本（来自 `cliVersion` 常量，须与 `pubspec.yaml` 的 `version` 同步）。
+- 查询 pub.dev 检查是否有新版本：
+  - 默认查询包名 `fluzer`；未发布时 pub.dev 返回 404，**静默降级**为「无法检查更新」，不影响主流程。
+  - 结果按包名缓存 **24 小时**，避免每次启动都打 API。
+  - 网络异常 / 限流同样静默降级。
+  - 发现新版本会提示：运行 `dart pub global activate fluzer` 升级。
+
+---
+
+## 6. 模板来源解析
+
+`new` 与 `create` 都依赖 `resolveBrickLoader()` 决定从哪加载 Mason brick。解析优先级：
+
+1. **`FLUZER_BRICKS_DIR`** 非空 → `LocalBrickLoader`（本地开发 / 调试，指向 `bricks/` 根目录）。
+2. **`FLUZER_TEMPLATE_ZIP_URL`** 非空 → 强制使用该 URL 的 `RemoteBrickLoader`（测试 / 调试）。
+3. 否则走**远程 registry**：从 `_templateRegistryUrl` 拉取 `template_registry.json`，在 `minCliVersion <= cliVersion` 的记录里选 `version` 最大者的 zip URL；拉取失败（或网络超时 3s）则回退 `_defaultTemplateZipUrl`。
+
+```bash
+# 本地调试：直接读本地 bricks 目录
+export FLUZER_BRICKS_DIR=../flutter_zero_template/bricks
+fluzer new user
+
+# 调试：强制指定某个远程 zip
+export FLUZER_TEMPLATE_ZIP_URL=https://github.com/<owner>/<repo>/releases/download/v1.0.0/bricks.zip
+fluzer create demo
+```
+
+`RemoteBrickLoader` 下载 zip 后按 URL 哈希缓存到临时目录，不同版本互不覆盖；解压时会兼容 zip 顶层多一层仓库目录的情况。
+
+> **发布前必做**：把 `template_source.dart` 里的 `_templateRegistryUrl`、`_defaultTemplateZipUrl` 占位符（`https://github.com/<owner>/<repo>/...`）替换为真实地址，并把 `cliVersion` 与 `pubspec.yaml` 对齐。registry 采用「兼容性桶」结构，详见[《CLI 版本管理》](../versioning-cli.md)。
+
+---
+
+## 7. 配置文件 `flutter_zero_config.yaml`
+
+`new` 命令依赖模板项目根目录的 `flutter_zero_config.yaml`。`ProjectConfig.load()` 会向上查找该文件并校验项目结构。
+
+```yaml
+version: 1.0.0            # 模板版本，须 >= 最低支持版本 (1.0.0)
+template_name: flutter_zero
+```
+
+校验项：
+
+- `version` 为合法字符串且 `>= 1.0.0`。
+- `template_name` 必须恰好为 `flutter_zero`。
+- 根目录存在 `pubspec.yaml`（读取 `name` 作为 `package_name`）、存在 `lib/`、`lib/core/di/injection_base.dart`。
+
+任一项不满足都会抛出 `CliException` 并终止，提示你在正确的模板项目根目录下执行。
+
+---
+
+## 8. 目录结构
 
 ```
 fluzer/
 ├── bin/
-│   └── main.dart                    # 入口 / Entry point
+│   └── fluzer.dart                     # 入口 / Entry point
 ├── lib/
-│   ├── fluzer.dart                  # 公共导出 / Public exports
 │   └── src/
-│       ├── fluzer.dart              # CLI 根控制器 / Root controller
+│       ├── fluzer.dart                 # CLI 根控制器（CommandRunner 装配 + 根异常兜底）
 │       ├── commands/
-│       │   ├── create_command.dart  # create 命令 / create command
-│       │   └── new_command.dart     # new 命令 / new command
+│       │   ├── create_command.dart     # create 命令（8 步流程 + 注入执行器）
+│       │   ├── new_command.dart        # new 命令（渲染 + 注册 DI）
+│       │   └── version_command.dart    # version 命令（可注入更新检查）
 │       ├── codemod/
-│       │   ├── codemod_file_editor.dart       # 通用文件编辑器 / Generic file editor
-│       │   ├── feature_registration.dart      # DI 注册封装 / DI registration wrapper
-│       │   ├── insert_at_method_end_transform.dart  # 方法末尾插入 / Insert at method end
-│       │   └── ordered_import_transform.dart  # import 顺序插入 / Ordered import insertion
+│       │   ├── code_mod.dart           # AST 编辑核心（CodeMod：addImport 排序 / insertAtMethodEnd 幂等）
+│       │   ├── codemod_file_editor.dart # 通用文件编辑封装
+│       │   ├── feature_registration.dart # DI 注册封装（依赖 CodeMod）
+│       │   ├── insert_at_method_end_transform.dart # 方法末尾插入转换
+│       │   └── ordered_import_transform.dart # import 顺序插入转换
 │       ├── config/
-│       │   └── project_config.dart  # 项目配置与 CliException / Project config & CliException
-│       └── templates/
-│           ├── feature_generator.dart # 功能模块生成器 / Feature module generator
-│           └── template_engine.dart   # 模板渲染引擎 / Template rendering engine
-├── templates/
-│   └── v1/
-│       ├── feature/                 # 功能模块模板 / Feature module templates
-│       └── project/                 # 完整项目模板 / Full project template
+│       │   └── project_config.dart     # 项目配置加载 + CliException
+│       ├── template/
+│       │   ├── brick_loader.dart        # BrickLoader 抽象 + Local / Remote 加载器
+│       │   ├── brick_renderer.dart      # Mason 渲染封装（BrickRenderer.generate）
+│       │   ├── feature_generator.dart   # 功能模块生成器（渲染 + 调 FeatureRegistration）
+│       │   └── template_source.dart     # 模板来源解析 + 版本/URL 常量
+│       ├── util/
+│       │   └── string_case.dart         # 命名转换工具
+│       └── version/
+│           └── version_check.dart       # pub.dev 更新检查 + 24h 缓存
 ├── test/
-│   └── fluzer_test.dart             # 单元测试 / Unit tests
+│   └── fluzer_test.dart                 # 命令层 + 版本检查单元测试
 └── pubspec.yaml
 ```
 
-## 配置文件 / Configuration
+---
 
-CLI 依赖模板项目根目录的 `flutter_zero_config.yaml`：
-
-The CLI depends on `flutter_zero_config.yaml` in the template project root:
-
-```yaml
-version: 1
-template_name: flutter_zero
-```
-
-## 技术栈 / Tech Stack
+## 9. 技术栈
 
 | 类别 | 方案 |
 |------|------|
-| 参数解析 | args |
-| 日志输出 | mason_logger |
-| AST 修改 | analyzer + codemod_recipe |
-| 模板渲染 | 自定义 TemplateEngine（`{{key}}` 占位符） |
-| YAML 解析 | yaml |
-| 路径操作 | path |
+| 参数解析 / CLI 框架 | `args`（CommandRunner + Command） |
+| 日志输出 | `mason_logger`（彩色控制台） |
+| 模板渲染 | `mason`（brick + Mustache 过滤器） |
+| 模板下载 / 解压 | `http` + `archive` |
+| AST 代码修改 | `analyzer` + `codemod_recipe`（封装为 `CodeMod`） |
+| YAML 解析 | `yaml` |
+| 路径操作 | `path` |
+
+---
+
+## 10. 开发与测试
+
+### 本地调试
+
+在 `flutter_zero_cli` 目录内用 `dart run bin/fluzer.dart ...`，并通过环境变量 `FLUZER_BRICKS_DIR` / `FLUZER_TEMPLATE_ZIP_URL` 指向本地或指定远程模板，避免每次都走 registry。
+
+### 注入执行器便于测试
+
+命令与版本检查均通过 typedef 注入外部实现，便于单测：
+
+- `CreateCommand`：`CreateFlutterCreateRunner` / `CreateFlutterPubGetRunner` / `CreateFlutterGenL10nRunner` / `CreateBuildRunnerRunner` 与 `BrickLoader`。
+- `NewCommand`：`BuildRunnerRunner` 与 `BrickLoader`。
+- `VersionCommand`：`CheckForUpdate`（默认 `checkForUpdate`，查询 pub.dev）。
+
+### 运行测试
+
+```bash
+dart analyze   # 0 issues
+dart test      # 含命令层（create/new/version）与网络降级路径
+```
+
+测试覆盖要点：项目名 / 功能名校验、目标目录已存在、完整生成流程、`flutter create` 失败时的清理、版本检查的有更新 / 已最新 / 不可用三种分支。
+
+---
+
+## 11. 常见排查
+
+- **`new` 报「未找到 flutter_zero_config.yaml」**：请 `cd` 到模板项目根目录（含该文件）再执行。
+- **`create` 报「目录已存在」**：换一个项目名；已存在的目录不会被删除。
+- **`version` 一直提示「无法检查更新」**：包尚未发布到 pub.dev，或网络受限——属正常降级，不影响其它命令。
+- **模板拉取慢 / 想固定版本**：用 `FLUZER_TEMPLATE_ZIP_URL` 指定具体 Release 的 zip 链接。
