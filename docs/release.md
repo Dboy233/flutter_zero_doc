@@ -129,7 +129,7 @@ dart test
 
 ### C3. 发布 CLI（仅当 C2 判定需要）
 
-1. 更新 `lib/src/version/cli_version.dart` 的 `cliVersion` 常量（**必须与 `pubspec.yaml` 同步**）。
+1. 更新 `lib/src/template/template_config.dart` 的 `cliVersion` 常量（**必须与 `pubspec.yaml` 同步**）。
 2. 若模板 MAJOR，确认 `resolveBrickLoader` 的 `minCliVersion` 校验兼容。
 3. 重新跑 `dart analyze` + `dart test`。
 4. 发布：
@@ -169,14 +169,11 @@ dart test
 
 ### 3.1 占位待替换（发布前必填）
 
-位置：`flutter_zero_cli/lib/src/template/template_source.dart`
+位置：`flutter_zero_cli/lib/src/template/template_config.dart`
 
-- `_templateRegistryUrl` → 真实 raw URL
+- `templateRegistryUrl` → 真实 raw URL
   `https://raw.githubusercontent.com/OWNER/REPO/main/template_registry.json`
-- `_defaultTemplateZipUrl` → 真实 Release **固定版本** URL（作为拉取失败时的兜底）
-
-位置：`flutter_zero_cli/lib/src/version/cli_version.dart`
-
+- `defaultTemplateZipUrl` → 真实 Release **固定版本** URL（作为拉取失败时的兜底）
 - `cliVersion` → 与 `pubspec.yaml` 同步（每次 CLI 发版必改）
 
 ### 3.2 命令速查

@@ -25,11 +25,12 @@ CLI 运行时的模板来源解析流程（`lib/src/template/template_source.dar
 1. `FLUZER_BRICKS_DIR` 非空 → 本地加载（开发/调试）。
 2. 否则拉取 `template_registry.json`（硬编码的 registry URL）：
    - 成功 → 读取 `url` 与 `minCliVersion`；若 `自身版本 < minCliVersion` → 报错提示升级。
-   - 失败（断网/网络差）→ 回退到内置 `_defaultTemplateZipUrl` 兜底。
+   - 失败（断网/网络差）→ 回退到内置 `defaultTemplateZipUrl` 兜底。
 3. 用解析出的 `url` 构造 `RemoteBrickLoader`。
 
-> zip 缓存基于 URL 哈希。registry 中不同版本的 `url` 天然命中不同缓存目录，
-> 旧版本缓存不会被误用，无需手动清理。
+> 缓存目录优先按模板版本号命名（`template_<版本>`），环境变量覆盖 / 回退时退化为按 URL 哈希命名。
+> registry 中不同版本的 `url` 天然命中不同缓存目录，旧版本缓存不会被误用，无需手动清理。
+> 如需强制刷新，运行 `fluzer cache clean`。
 
 ## minCliVersion 校验
 

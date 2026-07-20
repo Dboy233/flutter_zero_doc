@@ -149,7 +149,31 @@ class HomeBloc extends Bloc<HomeEvent, HomeState>
 
 ## 5. 内部工作机制：单向数据流
 
-![../images/internal_working_mechanisms.png](../images/internal_working_mechanisms.png)
+```mermaid
+%%{init: {"themeVariables": {"fontSize": "16px"}, "useMaxWidth": false}}%%
+sequenceDiagram
+    autonumber
+    actor User as 用户
+    participant View as View（HomeBody）
+    participant Bloc as Bloc（HomeBloc）
+    participant Repo as Repository
+    participant Listener as EffectListener
+    participant Chain as 责任链（EffectHandle）
+    participant Notifiers as Notifiers
+
+    User->>View: 交互（下拉刷新 / 点击）
+    View->>Bloc: context.read(HomeBloc).add(HomeEvent.fetch())
+    Note over Bloc: _onFetch(HomeFetch)
+    Bloc-->>View: emit(state.copyWith(isLoading: true)) ① 状态回流到 View
+    Bloc->>Repo: await fetchPosts(token: token('posts'))
+    Repo-->>Bloc: 数据 / 异常（AppException）
+    Bloc-->>View: emit(state.copyWith(items: ...)) ② 状态回流到 View
+    Bloc->>Listener: emitEffect(ToastEffect(l10nCode: 'homeLoadFailed'))
+    Note over Listener: 订阅 BlocEffectMixin.effectStream
+    Listener->>Chain: 依次派发（业务 handle → 框架默认 handle）
+    Chain->>Notifiers: 认领并触发
+    Notifiers-->>View: 弹出 Toast / Loading / Dialog
+```
 
 关键点：
 

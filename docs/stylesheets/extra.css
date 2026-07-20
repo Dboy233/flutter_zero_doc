@@ -1,0 +1,44 @@
+/* 让 Mermaid 图表按自然尺寸渲染，超出容器时滚动，而不是被压扁 */
+.mermaid {
+  overflow: auto;
+  max-height: 80vh;
+  position: relative;
+}
+
+/* 关键：禁止 Mermaid 把 SVG 强制缩放到 100% 宽度，否则时序图内容会被挤成小字 */
+.mermaid svg {
+  max-width: none !important;
+  height: auto;
+  transform-origin: 0 0;
+}
+
+/* 缩放工具栏（由 javascripts/mermaid-zoom.js 注入） */
+.mermaid-zoom-toolbar {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest, #ccc);
+  border-radius: 6px;
+  opacity: 0.92;
+}
+
+.mermaid-zoom-toolbar button {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 4px;
+  background: var(--md-primary-fg-color, #4051b5);
+  color: var(--md-primary-bg-color, #fff);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.mermaid-zoom-toolbar button:hover {
+  opacity: 0.85;
+}
