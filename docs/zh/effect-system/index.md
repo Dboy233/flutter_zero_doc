@@ -108,7 +108,7 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 ### `defaultToastHandle` 的 code 映射
 
-`code` 按 `AppErrorCodes`（负数内部码 + 常见 HTTP 4xx/5xx）映射为本地化文案，未列出的码走 `unknownErrorCode` 兜底。详见 [错误处理与 Result](error-handling.md)。
+`code` 按 `AppErrorCodes`（负数内部码 + 常见 HTTP 4xx/5xx）映射为本地化文案，未列出的码走 `unknownErrorCode` 兜底。详见 [错误处理与 Result](../architecture/error-handling.md)。
 
 ---
 

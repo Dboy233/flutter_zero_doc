@@ -113,7 +113,7 @@ result.when(
 | `isCancelled(error)` | 判断是否主动取消 |
 | `errorHandler`（可覆盖） | 注入自定义 `ServerMessageExtractor` |
 
-`ex.toToastEffect()` 的解析优先级（见 [Effect 与 Notifiers](effect-system.md)）：`message` 直接显示 → `code` 按 `AppErrorCodes` 兜底 → 若带 `l10nCode` 则必须由业务 handle 翻译。
+`ex.toToastEffect()` 的解析优先级（见 [Effect 与 Notifiers](../effect-system/index.md)）：`message` 直接显示 → `code` 按 `AppErrorCodes` 兜底 → 若带 `l10nCode` 则必须由业务 handle 翻译。
 
 ---
 

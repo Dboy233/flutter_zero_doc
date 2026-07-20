@@ -59,7 +59,7 @@ abstract class LoginState with _$LoginState {
 ```
 
 !!! note "为什么状态不持有 DTO？"
-    模板接受「状态直接持有数据层 DTO」的主流取舍（见 [架构总览](architecture/)）。若你追求最严格分层，可在 Bloc 内把 `XxxModel` 映射成 `XxxUiModel` 再进 `State`。
+    模板接受「状态直接持有数据层 DTO」的主流取舍（见 [架构总览](../architecture/)）。若你追求最严格分层，可在 Bloc 内把 `XxxModel` 映射成 `XxxUiModel` 再进 `State`。
 
 ---
 
@@ -262,4 +262,4 @@ flutter run
 5. `effects/<name>_effect_handle.dart` 只翻译自定义 `l10nCode`，其余交默认 handle。
 6. 页面只渲染 `State`、只发射意图。
 
-更细的封装用法见 [BLoC 四个 Mixin](architecture/bloc-mixins.md)、[错误处理与 Result](architecture/error-handling.md)、[Effect 与 Notifiers](architecture/effect-system.md)。
+更细的封装用法见 [BLoC 四个 Mixin](../architecture/bloc-mixins.md)、[错误处理与 Result](../architecture/error-handling.md)、[Effect 与 Notifiers](../effect-system/index.md)。

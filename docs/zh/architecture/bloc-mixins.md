@@ -116,7 +116,7 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
 }
 ```
 
-关闭 BLoC 时 Mixin 自动 `close()` 控制器，无泄漏。`UIEffect` 是**开放基类**，自定义类型只需 `extends UIEffect`（详见 [Effect 与 Notifiers](effect-system.md)）。
+关闭 BLoC 时 Mixin 自动 `close()` 控制器，无泄漏。`UIEffect` 是**开放基类**，自定义类型只需 `extends UIEffect`（详见 [Effect 与 Notifiers](../effect-system/index.md)）。
 
 ---
 
