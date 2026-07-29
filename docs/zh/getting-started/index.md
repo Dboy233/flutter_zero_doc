@@ -1,5 +1,8 @@
 # 安装与创建项目
 
+[![fluzer](https://img.shields.io/pub/v/fluzer.svg?label=fluzer)](https://pub.dev/packages/fluzer)
+[![template](https://img.shields.io/github/v/release/Dboy233/flutter_zero_template.svg?label=template)](https://github.com/Dboy233/flutter_zero_template/releases)
+
 本页面向 **`fluzer` 使用者**：如何安装、创建项目、生成功能模块，并跑起来。所有命令与骨架均基于真实代码。
 
 ---

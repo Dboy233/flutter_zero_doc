@@ -1,5 +1,8 @@
 # Install & Create a Project
 
+[![fluzer](https://img.shields.io/pub/v/fluzer.svg?label=fluzer)](https://pub.dev/packages/fluzer)
+[![template](https://img.shields.io/github/v/release/Dboy233/flutter_zero_template.svg?label=template)](https://github.com/Dboy233/flutter_zero_template/releases)
+
 This page is for **`fluzer` users**: how to install it, create a project, generate a feature module, and run it. All commands and skeletons are based on the real code.
 
 ---
