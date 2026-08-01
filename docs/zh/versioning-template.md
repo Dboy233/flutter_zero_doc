@@ -30,7 +30,8 @@
 
 ## minCliVersion 更新时机
 
-- 模板 **PATCH / MINOR** → **不动** `minCliVersion`。模板修 bug、加功能时，CLI 一行不用改，老 CLI 自动拉到新 zip。
+- 模板 **PATCH / MINOR** → **通常不动** `minCliVersion`。模板修 bug、加功能时，CLI 一行不用改，老 CLI 自动拉到新 zip。
+- 例外：若 PATCH/MINOR 的改动**引入了对更高 CLI 版本的新依赖**（例如新增被 `fluzer new`/`gen-l10n` 版本门禁消费的字段——如 `flutter_zero_config.yaml` 的 `minCliVersion`，或文档/注释引用了仅在新 CLI 才存在的命令），则须将 `minCliVersion` **bump 到该 CLI 版本**。1.0.1 即属此类：`default_toast_effect_handle.dart` 的文档指向 `fluzer gen-l10n`（CLI 1.1.0 引入），故 `minCliVersion` 提到 `1.1.0`。
 - 模板 **MAJOR** → **bump** `minCliVersion` 到对应 CLI 版本。老 CLI 运行时读到 `minCliVersion > 自身版本` 会明确报错"请升级 CLI"，而非静默生成坏代码。
 
 ## 发布流程（模板）
@@ -41,10 +42,11 @@
 4. 更新 `template_registry.json`：
    - `version` → 新版本号
    - `url` → 新 Release 的 `bricks.zip` 固定链接
-   - `minCliVersion` → 若本次为 MAJOR 则提高，否则保持
+   - `minCliVersion` → 若本次为 MAJOR，或 PATCH/MINOR 引入了新 CLI 依赖（见上），则提高到对应 CLI 版本；否则保持
 5. 推送到 `main`，`raw.githubusercontent.com/<owner>/<repo>/main/template_registry.json` 即时生效。
 6. **CLI 无需发版**（除非 `minCliVersion` 要求的新 CLI 能力尚未发布）。
 
 ## 相关文档
 
 - CLI 版本规范见 [CLI版本管理](versioning-cli.md)。
+- 三版本约束关系与命令门禁见 [版本约束规则](versioning-rules.md)。

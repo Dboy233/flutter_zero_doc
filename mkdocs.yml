@@ -57,6 +57,7 @@ plugins:
             发布流程: Release Process
             CLI 版本管理: CLI Versioning
             模板版本管理: Template Versioning
+            版本约束规则: Version Constraint Rules
 
 extra_css:
   - stylesheets/extra.css
@@ -79,6 +80,7 @@ nav:
       - 发布流程: release.md
       - CLI 版本管理: versioning-cli.md
       - 模板版本管理: versioning-template.md
+      - 版本约束规则: versioning-rules.md
 
 markdown_extensions:
   - admonition

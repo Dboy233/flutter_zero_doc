@@ -18,24 +18,24 @@ CLI 与模板是两条独立的版本线，二者通过 `template_registry.json`
 | **MINOR** `1.x.0` | 向下兼容地**新增**功能：新命令、registry 拉取支持、新环境变量 | 现有模板照常加载 | `minCliVersion` 不变 |
 | **MAJOR** `x.0.0` | **破坏性变更**：开始向 brick 传**新必填变量**而老模板没有、重写 codemod 注入逻辑导致老模板锚点失效 | 老模板可能生成失败 | 需同步推新模板或做兼容分支 |
 
-## resolveBrickLoader 兼容逻辑
+## 模板缓存
 
-CLI 运行时的模板来源解析流程（`lib/src/template/template_source.dart`）：
-
-1. `FLUZER_BRICKS_DIR` 非空 → 本地加载（开发/调试）。
-2. 否则拉取 `template_registry.json`（硬编码的 registry URL）：
-   - 成功 → 读取 `url` 与 `minCliVersion`；若 `自身版本 < minCliVersion` → 报错提示升级。
-   - 失败（断网/网络差）→ 回退到内置 `defaultTemplateZipUrl` 兜底。
-3. 用解析出的 `url` 构造 `RemoteBrickLoader`。
+模板加载器（`resolveBrickLoader`，实现见 `lib/src/template/template_source.dart`）的缓存与刷新规则：
 
 > 缓存目录优先按模板版本号命名（`template_<版本>`），环境变量覆盖 / 回退时退化为按 URL 哈希命名。
-> registry 中不同版本的 `url` 天然命中不同缓存目录，旧版本缓存不会被误用，无需手动清理。
+> 模板注册表中不同版本的 `url` 天然命中不同缓存目录，旧版本缓存不会被误用，无需手动清理。
 > 如需强制刷新，运行 `fluzer cache clean`。
+
+> 模板来源选择与版本门禁逻辑（按 CLI 版本选模板、按项目模板版本钉死下载、minCliVersion 校验）统一见 [版本约束规则](versioning-rules.md)。
 
 ## minCliVersion 校验
 
-- CLI 启动时校验自身版本是否 ≥ registry 的 `minCliVersion`。
-- 不满足 → 终止并提示用户升级 CLI，避免用不兼容的 CLI 生成坏代码。
+`minCliVersion` 是某个模板版本要求的最低 CLI 版本，同时写在模板注册表 `template_registry.json` 与项目 `flutter_zero_config.yaml` 中。两类命令的校验方式不同：
+
+- **`create`（CLI 驱动）**：不直接报错。CLI 在模板注册表中选取所有 `minCliVersion <= 当前 CLI 版本` 的条目，下载其中 `version` 最大者；若没有兼容条目或注册表拉取失败，则**静默回退**到内置 `defaultTemplateZipUrl`（`1.0.0`），保证总能创建项目。
+- **`new` / `gen-l10n`（项目驱动）**：执行前校验项目 `flutter_zero_config.yaml` 的 `minCliVersion <= 当前 CLI 版本`；不满足则**终止并提示升级 CLI**，避免用不兼容的 CLI 生成坏代码。
+
+> 完整的门禁公式与边界场景见 [版本约束规则](versioning-rules.md)。
 
 ## 兼容性契约分水岭（CLI 侧）
 
@@ -57,3 +57,4 @@ CLI 运行时的模板来源解析流程（`lib/src/template/template_source.dar
 ## 相关文档
 
 - 模板版本规范见 [模板版本管理](versioning-template.md)。
+- 三版本约束关系与命令门禁见 [版本约束规则](versioning-rules.md)。

@@ -16,24 +16,24 @@ Version format `MAJOR.MINOR.PATCH` (e.g. `1.0.0`).
 | **MINOR** `1.x.0` | Backward-compatible **new** feature: new command, registry-pull support, new env var | Existing template loads as usual | `minCliVersion` unchanged |
 | **MAJOR** `x.0.0` | **Breaking change**: start passing **new required variables** to the brick that the old template lacks, or rewrite codemod injection logic so old template anchors break | Old template may fail to generate | Need to push a new template or make a compat branch |
 
-## resolveBrickLoader Compatibility Logic
+## Template Cache
 
-The CLI's template-source resolution flow at runtime (`lib/src/template/template_source.dart`):
-
-1. `FLUZER_BRICKS_DIR` non-empty → local load (dev/debug).
-2. Otherwise pull `template_registry.json` (hardcoded registry URL):
-   - Success → read `url` and `minCliVersion`; if `own version < minCliVersion` → error prompting to upgrade.
-   - Failure (offline / poor network) → fall back to the built-in `defaultTemplateZipUrl`.
-3. Build `RemoteBrickLoader` from the resolved `url`.
+Cache and refresh rules of the template loader (`resolveBrickLoader`, implemented in `lib/src/template/template_source.dart`):
 
 > The cache directory is named by template version number first (`template_<version>`); on env-var override / fallback it degrades to a URL-hash name.
-> Different versions in the registry naturally hit different cache directories, so old-version caches are never misused and no manual cleanup is needed.
+> Different versions in the template registry naturally hit different cache directories, so old-version caches are never misused and no manual cleanup is needed.
 > To force a refresh, run `fluzer cache clean`.
+
+> The template-source selection and version-gating logic (picking a template by CLI version, pinning the download by project template version, minCliVersion validation) are unified in [Version Constraint Rules](versioning-rules.md).
 
 ## minCliVersion Validation
 
-- The CLI validates at startup whether its own version is ≥ the registry's `minCliVersion`.
-- If not satisfied → abort and prompt the user to upgrade the CLI, avoiding generating bad code with an incompatible CLI.
+`minCliVersion` is the minimum CLI version a template version requires; it is written both in the template registry `template_registry.json` and in the project's `flutter_zero_config.yaml`. The two command classes validate differently:
+
+- **`create` (CLI-driven)** does not error directly. The CLI picks, from the template registry, all entries with `minCliVersion <= current CLI version` and downloads the one with the largest `version`. If no compatible entry exists or the registry fetch fails, it **silently falls back** to the built-in `defaultTemplateZipUrl` (`1.0.0`) so a project can always be created.
+- **`new` / `gen-l10n` (project-driven)** validate before running that the project's `flutter_zero_config.yaml` `minCliVersion <= current CLI version`; if not satisfied, it **aborts and prompts the user to upgrade the CLI**, avoiding generating broken code with an incompatible CLI.
+
+> The full gate formula and boundary scenarios are in [Version Constraint Rules](versioning-rules.md).
 
 ## Compatibility Contract Watershed (CLI side)
 
@@ -55,3 +55,4 @@ To decide which position to bump, the key is whether you touched the **contract*
 ## Related Documents
 
 - Template version spec: see [Template Versioning](versioning-template.md).
+- Three-version constraint relationship and command gating: see [Version Constraint Rules](versioning-rules.md).
