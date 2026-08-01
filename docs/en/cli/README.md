@@ -1,9 +1,10 @@
 # fluzer — Scaffolding CLI
 
-`fluzer` is the command-line tool for the Flutter Zero template, providing four groups of commands:
+`fluzer` is the command-line tool for the Flutter Zero template, providing five groups of commands:
 
 - **`create`**: generate a brand-new Flutter project from the template (with complete core infrastructure, example modules, and configuration).
 - **`new`**: add a feature-module skeleton in an existing template project, and **auto-register it in DI**.
+- **`gen-l10n`**: run `flutter gen-l10n` and generate a type-safe `L10nCode` access layer, **auto-wiring** `defaultToastHandle`.
 - **`cache`**: view or clear locally downloaded template caches (`cache list` / `cache clean`).
 - **`version`**: show the CLI's own version and check for updates.
 
@@ -43,6 +44,7 @@ fluzer version         # show version + check for updates
 |---------|---------|----------------|
 | `fluzer new <feature_name>` | Add a feature module in the current template project and register DI | `--build-runner` / `--no-build-runner` |
 | `fluzer create <project_name>` | Create a brand-new Flutter project from the template | `--org`, `--build-runner` / `--no-build-runner` |
+| `fluzer gen-l10n` | Generate the L10nCode access layer and auto-wire toast dispatch | `--skip-handle-patch` / `--force-handle-patch` |
 | `fluzer cache list` | List downloaded cached template versions | — |
 | `fluzer cache clean` | Clear all cached template versions | — |
 | `fluzer version` | Print the CLI version and check pub.dev for updates | — |
@@ -103,7 +105,81 @@ After a successful creation it suggests next steps: `cd my_app` → (optional) `
 
 ---
 
-## 5. `version` — Show version & check for updates
+## 5. `gen-l10n` — Type-safe localization access layer
+
+Must be run in the **root directory of a Flutter Zero template project**. On top of `flutter gen-l10n`, it generates a type-safe localization access layer so BLoCs can carry localized messages without a `BuildContext`.
+
+Execution flow:
+
+1. Validate the project config and parse `l10n.yaml` (`arb-dir` / `output-dir` / `output-class`, falling back to template conventions).
+2. Ensure the ARB directory exists and contains `.arb` files.
+3. Run `flutter gen-l10n`.
+4. Parse the generated `AppLocalizations` abstract class members (brace-counting class-body scanner; parameter declared types preserved).
+5. Generate three files into `output-dir` (default `lib/l10n/gen/`):
+   - **`l10n_code.dart`** — the `L10nCode` value object: `code` + `parameters` fields, no-arg `static const` constants, typed factories for parameterized keys, symmetric `toString`/`parse` serialization (encoding only at the serialization boundary), `==`/`hashCode`.
+   - **`l10n_code_ext.dart`** — `typeS()` / `typeE()` / `typeI()` / `typeW()` toast-type markers plus a `toToastEffect()` shortcut.
+   - **`l10n_toast_effect_helper.dart`** — a centralized switch dispatcher covering every ARB key, deserializing parameters by declared type (`int.tryParse`, `DateTime.tryParse`, ...).
+6. Auto-wire `defaultToastHandle`: locate the `effect.l10nCode != null` branch via AST and replace it with the helper call (see "Auto-wiring" below).
+
+```bash
+fluzer gen-l10n
+
+# options
+#   --skip-handle-patch    skip the defaultToastHandle auto-wiring
+#   --force-handle-patch   overwrite even if the l10nCode branch was customized (prints the replaced source first)
+```
+
+### Usage in BLoC
+
+```dart
+// No-arg + type marker — emit a ToastEffect in one step
+emitEffect(L10nCode.homeRefreshSuccess.typeI().toToastEffect());
+
+// Parameterized (types match the ARB placeholder declarations)
+emitEffect(L10nCode.requestFailed('E1001').typeE().toToastEffect());
+
+// Equivalent manual form
+emitEffect(ToastEffect(l10nCode: L10nCode.homeRefreshSuccess.typeI().toString()));
+```
+
+No more per-feature ToastEffect handlers — every l10nCode is dispatched by `L10nToastEffectHelper` to `ToastService`'s `showSuccess` / `showError` / `showInfo` / `showWarning`.
+
+### Three-state detection of auto-wiring
+
+`gen-l10n` modifies `lib/core/effect/effect_handle/default_toast_effect_handle.dart` and adds the missing imports. To protect developer modifications, the branch state is detected before patching:
+
+| State | Detection | Behavior |
+|-------|-----------|----------|
+| Template | branch contains the `assert(` fallback (template default) | Replace; the replaced source is printed in the log |
+| Already wired | branch already contains `L10nToastEffectHelper` | Idempotent skip (safe on repeated runs) |
+| Customized | anything else (developer rewrote the branch) | Skip with a warning; `--force-handle-patch` to overwrite |
+
+Other code in the file (e.g. your own errorCode cases in `_handleErrorCode`) is **untouched** — the patch locates the exact branch via AST and only replaces that block.
+
+> **Why doesn't the template ship pre-wired?** The three gen files don't exist before the first `gen-l10n` run; referencing them in the template would break compilation of freshly created projects. Shipping the assert fallback + auto-wiring on first `gen-l10n` is the only self-consistent option.
+
+### ARB placeholder types
+
+Typed placeholders declared in ARB are preserved end-to-end in the `L10nCode` factory signature and the helper's deserialization:
+
+```json
+"@counterValue": { "placeholders": { "count": { "type": "int" } } }
+```
+
+```dart
+// Generated factory keeps the int type
+L10nCode.counterValue(5);
+// Helper restores the value by type
+l.counterValue(int.tryParse(l10nCode.parameters['count'] ?? '') ?? 0)
+```
+
+Supported types: `Object` / `String` / `int` / `double` / `num` / `bool` / `DateTime` (DateTime is serialized as ISO-8601).
+
+> The three generated files are **fully regenerated** outputs (add them to `.gitignore`; template projects ignore `lib/l10n/gen/` by default). Each header carries the CLI version for traceability.
+
+---
+
+## 6. `version` — Show version & check for updates
 
 ```bash
 fluzer version
@@ -118,7 +194,7 @@ fluzer version
 
 ---
 
-## 6. `cache` — Manage template cache
+## 7. `cache` — Manage template cache
 
 `fluzer` caches the remotely pulled template zip under `fluzer_cache/` in the system temp directory (directory name `template_<version>` or the fallback `fluzer_<hash>`). The `cache` command is for viewing and cleaning:
 
@@ -135,7 +211,7 @@ fluzer cache clean    # clear all cached template versions
 
 ---
 
-## 7. Template Source Resolution
+## 8. Template Source Resolution
 
 Both `new` and `create` rely on `resolveBrickLoader()` to decide where to load the Mason brick. Resolution priority:
 
@@ -159,7 +235,7 @@ fluzer create demo
 
 ---
 
-## 8. Config File `flutter_zero_config.yaml`
+## 9. Config File `flutter_zero_config.yaml`
 
 The `new` command depends on `flutter_zero_config.yaml` in the template project root. `ProjectConfig.load()` searches upward for this file and validates the project structure.
 
@@ -178,7 +254,7 @@ Any unmet item throws `CliException` and aborts, prompting you to run it in the 
 
 ---
 
-## 9. Directory Structure
+## 10. Directory Structure
 
 ```
 fluzer/
@@ -190,8 +266,14 @@ fluzer/
 │       ├── commands/
 │       │   ├── create_command.dart     # create command (7-step flow + injection executor)
 │       │   ├── new_command.dart        # new command (render + register DI)
+│       │   ├── gen_l10n_command.dart   # gen-l10n command (orchestration: validate → generate → wire)
 │       │   ├── cache_command.dart      # cache command (list / clean cache)
 │       │   └── version_command.dart    # version command (injectable update check)
+│       ├── gen_l10n/
+│       │   ├── l10n_config.dart         # l10n.yaml parsing (arb-dir/output-dir/output-class)
+│       │   ├── l10n_parser.dart         # AppLocalizations parsing (class-body brace scanner + typed L10nParam)
+│       │   ├── l10n_code_generator.dart # pure-function generators for the three gen files (dart_style formatted)
+│       │   └── toast_handle_patcher.dart # defaultToastHandle AST wiring (three-state detection)
 │       ├── codemod/
 │       │   ├── code_mod.dart           # AST editing core (CodeMod: sorted addImport / idempotent insertAtMethodEnd)
 │       │   ├── codemod_file_editor.dart # generic file-edit wrapper
@@ -218,13 +300,15 @@ fluzer/
 │           └── version_check.dart       # pub.dev update check (available results cached 24h, unavailable 10min)
 ├── test/
 │   ├── fluzer_test.dart                 # command-layer + version-check unit tests
-│   └── brick_test.dart                  # brick render smoke test
+│   ├── brick_test.dart                  # brick render smoke test
+│   ├── gen_l10n_test.dart               # l10n parsing & code generation unit tests
+│   └── toast_handle_patcher_test.dart   # auto-wiring three-state / idempotency / safety tests
 └── pubspec.yaml
 ```
 
 ---
 
-## 10. Tech Stack
+## 11. Tech Stack
 
 | Category | Solution |
 |----------|----------|
@@ -233,12 +317,13 @@ fluzer/
 | Template rendering | `mason` (brick + Mustache filters) |
 | Template download / unzip | `dio` + `archive` |
 | AST code modification | `analyzer` + `codemod_recipe` (wrapped as `CodeMod`) |
+| Generated-code formatting | `dart_style` (in-process, no subprocess needed) |
 | YAML parsing | `yaml` |
 | Path operations | `path` |
 
 ---
 
-## 11. Development & Testing
+## 12. Development & Testing
 
 ### Local debugging
 
@@ -263,7 +348,7 @@ Coverage highlights: project-name / feature-name validation, target directory al
 
 ---
 
-## 12. Common Troubleshooting
+## 13. Common Troubleshooting
 
 - **`new` reports "flutter_zero_config.yaml not found"**: `cd` into the template project root (the one containing that file) before running.
 - **`create` reports "directory already exists"**: pick another project name; the existing directory will not be deleted.
