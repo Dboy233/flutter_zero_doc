@@ -1,0 +1,14 @@
+# MkDocs build output
+site/
+
+# Build logs
+build_warn.log
+site_build.log
+
+# Python
+__pycache__/
+.venv/
+venv/
+
+# IDE
+.idea/
