@@ -5,7 +5,7 @@ Flutter Zero is an **enterprise-grade Flutter MVI template**, built from three i
 | Repository | Role |
 |------------|------|
 | `flutter_zero_app` | Example app (a real project generated from the template, demonstrating the `home` / `counter` / `search` / `login` / `settings` modules) |
-| `flutter_zero_cli` | Scaffolding CLI `fluzer` (create projects, generate feature modules, check for updates) |
+| `flutter_zero_cli` | Scaffolding CLI `fluzer` (create projects, generate feature modules, generate the type-safe localization access layer, manage the template cache, check for updates) |
 | `flutter_zero_template` | Pure template source (Mason Brick); `fluzer` renders projects and module skeletons from it |
 
 ---
@@ -43,7 +43,13 @@ The template is built around two main threads; every abstraction serves them:
   - [Error Handling & Result](architecture/error-handling.md) — exception normalization, `Result<T>`, and business status-code handling.
   - [Dependency Injection](architecture/dependency-injection.md) — the `get_it` three-file convention and automatic module registration.
 - **[CLI Reference](cli/)** — `fluzer` commands, directory structure, configuration, and debug environment variables.
-- **Release & Versions** — [Release Process](release.md) / [CLI Versioning](versioning-cli.md) / [Template Versioning](versioning-template.md).
+- **Release & Versions** — [Version Constraint Rules](versioning-rules.md) / [Release Process](release.md) / [CLI Versioning](versioning-cli.md) / [Template Versioning](versioning-template.md).
 
 !!! note "About the network layer"
     The network-request wrapper (`DioClient`, interceptors) is a data-layer detail and is not covered in the main docs. On the business side you only care about the methods `Repository` exposes and the exception types it throws (`AppException` and its subclasses).
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/index.md)*

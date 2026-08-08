@@ -12,9 +12,9 @@
 
 | Topic | Document |
 |-------|----------|
-| Three-repository responsibilities & architecture | `ARCHITECTURE.md` |
-| Template version rules (SemVer bump) | `flutter_zero_template/VERSIONING.md` |
-| CLI version rules & compatibility logic | `flutter_zero_cli/VERSIONING.md` |
+| Three-repository responsibilities & architecture | [Architecture Overview](architecture/index.md) |
+| Template version rules (SemVer bump) | [Template Versioning](versioning-template.md) |
+| CLI version rules & compatibility logic | [CLI Versioning](versioning-cli.md) |
 | Template distribution mechanism (registry) | `flutter_zero_template/template_registry.json` |
 
 **Version rules in one line**:
@@ -135,8 +135,8 @@ Must be **0 issues + all green** before release.
 
 ### C3. Release the CLI (only when C2 decides it's needed)
 
-1. Update the `cliVersion` constant in `lib/src/template/template_config.dart` (**must stay in sync with `pubspec.yaml`**).
-2. If the template is MAJOR, confirm `resolveBrickLoader`'s `minCliVersion` validation is compatible.
+1. Update the `cliVersion` constant in `lib/src/config/template_config.dart` (**must stay in sync with `pubspec.yaml`**).
+2. If the template is MAJOR, confirm `TemplateSourceResolver.resolve()`'s `minCliVersion` validation is compatible.
 3. Re-run `dart analyze` + `dart test`.
 4. Publish:
    ```bash
@@ -167,6 +167,10 @@ Must be **0 issues + all green** before release.
 - [ ] `dart analyze` 0 issues
 - [ ] `dart test` all green
 - [ ] Placeholder URLs replaced with real addresses (see appendix 3.1)
+- [ ] `CHANGELOG.md` and `CHANGELOG_CN.md` both have the new entry at the top, with matching content
+- [ ] `dart pub publish --dry-run` passes (no missing-dependency or similar errors)
+- [ ] If i18n strings changed, `dart run slang` has been run to regenerate `strings*.g.dart`
+- [ ] `intl` is explicitly declared in `pubspec.yaml` `dependencies` (slang's pure-Dart output still does `import 'package:intl/intl.dart'`)
 - [ ] `dart pub publish` succeeds
 
 ---
@@ -175,12 +179,16 @@ Must be **0 issues + all green** before release.
 
 ### 3.1 Placeholders to replace (required before release)
 
-Location: `flutter_zero_cli/lib/src/template/template_config.dart`
+Location: `flutter_zero_cli/lib/src/config/template_config.dart`
 
 - `templateRegistryUrl` → real raw URL
   `https://raw.githubusercontent.com/OWNER/REPO/main/template_registry.json`
 - `defaultTemplateZipUrl` → real Release **fixed-version** URL (fallback when pull fails)
 - `cliVersion` → in sync with `pubspec.yaml` (must change on every CLI release)
+
+> ⚠️ **Never modify `minimumSupportedVersion`**: this constant is the "oldest template version the CLI accepts",
+> unrelated to the CLI's own version (`cliVersion`). Bumping it to the CLI version would wrongly reject valid
+> older templates such as `1.0.x` and break the gate. It must stay at `1.0.0`.
 
 ### 3.2 Command Quick Reference
 
@@ -196,3 +204,9 @@ Location: `flutter_zero_cli/lib/src/template/template_config.dart`
 ---
 
 > Doc maintenance: this process evolves with release practice. If you find a step that doesn't match reality, prioritize updating this document and the two `versioning-xxx.md` files.
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/release.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/release.md)*

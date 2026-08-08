@@ -263,3 +263,9 @@ Every feature module follows the same recipe:
 6. The page only renders `State` and only emits intents.
 
 For finer-grained usage, see [The Four BLoC Mixins](../architecture/bloc-mixins.md), [Error Handling & Result](../architecture/error-handling.md), and [Effect & Notifiers](../effect-system/index.md).
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/getting-started/your-first-feature.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/getting-started/your-first-feature.md)*

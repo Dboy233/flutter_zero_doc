@@ -48,3 +48,9 @@ To decide which position to bump, the key is whether you touched the **contract*
 
 - CLI version spec: see [CLI Versioning](versioning-cli.md).
 - Three-version constraint relationship and command gating: see [Version Constraint Rules](versioning-rules.md).
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/versioning-template.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/versioning-template.md)*

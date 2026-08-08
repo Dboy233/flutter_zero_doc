@@ -21,6 +21,8 @@ dart pub global activate fluzer
 fluzer version
 ```
 
+> 如需英文界面，可加全局 `--locale en`（如 `fluzer --locale en version`）；`-l` 进入调试模式，排障时先加它重跑。
+
 ---
 
 ## 2. 创建项目
@@ -37,21 +39,17 @@ fluzer create my_app
 4. 清理 `flutter create` 生成的多余测试文件（`widget_test.dart`）
 5. 执行 `flutter pub get`
 6. 执行 `flutter gen-l10n`
-7. 执行 `build_runner`（可选，`--no-build-runner` 跳过）
 
 可用选项：
 
 ```bash
 fluzer create my_app \
-  --org com.example \
-  --no-build-runner
+  --org com.example
 ```
 
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `--org` | `com.example` | 组织标识，影响 bundle ID |
-| `--no-build-runner` | — | 跳过生成后的 `build_runner` 步骤 |
-| `--build-runner` | 启用 | 生成后运行 `build_runner`（默认行为，可 negatable） |
 
 创建完成后进入项目：
 
@@ -59,9 +57,10 @@ fluzer create my_app \
 cd my_app
 flutter pub get
 flutter gen-l10n
-dart run build_runner build
 flutter run
 ```
+
+> 新创建的干净模板已包含全部生成产物，通常无需 `build_runner`；只有当你新增了 freezed 模块后才需运行 `dart run build_runner build`。
 
 ---
 
@@ -119,4 +118,10 @@ class LoginPage extends StatelessWidget {
 骨架生成后，目录里是 freezed 空壳（含注释指引）和已混入四个 Mixin 的 Bloc 占位。下一步就是 **[编写第一个功能模块](your-first-feature.md)** —— 用一个完整示例演示如何把封装好的 Mixin / Effect / 错误体系 / `BaseRepository` 串起来写业务。
 
 !!! tip "关于 `version` 命令"
-    运行 `fluzer version` 可查看当前版本，并自动检查 pub.dev 是否有更新（可用结果 24h 缓存、不可用结果 10min 缓存、静默降级）。详见 [CLI 参考](cli/)。
+    运行 `fluzer version` 可查看当前版本，并自动检查 pub.dev 是否有更新（可用结果 24h 缓存、不可用结果 10min 缓存、静默降级）。详见 [CLI 参考](../cli/README.md)。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/getting-started/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/getting-started/index.md)*

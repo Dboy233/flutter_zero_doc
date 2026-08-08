@@ -14,7 +14,7 @@ This page unifies the version-constraint relationship among the three entities i
 
 | Entity | Source | Meaning |
 |--------|--------|---------|
-| **CLI version `cliVersion`** | `pubspec.yaml` / `template_config.dart` constant in `flutter_zero_cli` | The running `fluzer` binary version, e.g. `1.1.0` |
+| **CLI version `cliVersion`** | `pubspec.yaml` / `template_config.dart` constant in `flutter_zero_cli` | The running `fluzer` binary version, e.g. `1.2.0` |
 | **Template version** | `version` + `minCliVersion` of each entry in the template registry `template_registry.json` | A published template snapshot, and the "minimum CLI version that can use it" |
 | **Project template version** | `version` + `minCliVersion` in the project-root `flutter_zero_config.yaml` | Which template version this project was created from (e.g. `1.0.1`) |
 
@@ -42,17 +42,15 @@ Terms used below:
 Any command that **acts on an existing project** (`new` / `gen-l10n`) enforces one compatibility gate before running:
 
 ```text
-The template registry (template_registry.json) contains an entry matching the "project template version"
-  AND  that entry's minCliVersion <= the current CLI version cliVersion   →  pass, run the command
-otherwise                                                              →  error, refuse to run
+minCliVersion in the project's flutter_zero_config.yaml <= the running CLI version cliVersion   →  pass, run the command
+otherwise                                                                                      →  error, refuse to run
 ```
 
-The "project template version" is read from the project's `flutter_zero_config.yaml` `version` field.
+`minCliVersion` is read straight from the project's `flutter_zero_config.yaml` (**offline; the template registry is never queried**).
 
-Two failure modes should be reported distinctly:
+The only failure mode:
 
-- No matching entry for the project template version in the template registry → "Unknown project template version; check template_registry.json or upgrade fluzer".
-- A matching entry exists but `minCliVersion > current CLI version` → "CLI version too low; project template version requires CLI >= minCliVersion, please upgrade fluzer".
+- `config.minCliVersion > current CLI version` → "CLI version too low; the project template version requires CLI >= minCliVersion, please upgrade fluzer".
 
 > The `minCliVersion` used by the gate is read directly from the **project `flutter_zero_config.yaml`** (offline),
 > so the gate is stable and does not depend on fetching the template registry; `gen-l10n` stays fully offline.
@@ -85,7 +83,7 @@ The env vars `FLUZER_BRICKS_DIR` / `FLUZER_TEMPLATE_ZIP_URL` only override the d
 
 ### gen-l10n (existing project, gate only, no download)
 
-Uses the **same gate** as `new`: read `config.version` (project template version) → look up the template registry → check `minCliVersion <= cliVersion`.
+Uses the **same gate** as `new`: read `config.minCliVersion` → check `minCliVersion <= cliVersion` (**offline; the template registry is never queried**).
 
 **But `gen-l10n` downloads no template** — it only parses `l10n.yaml` / `AppLocalizations` locally and generates code.
 Pass the gate → run locally; fail → error.
@@ -103,13 +101,12 @@ flowchart TD
     A[Command starts] --> B{Acts on existing project?}
     B -- create: no project --> C[Pick largest compatible version<br/>from template registry by cliVersion]
     C --> C1[No compatible / fetch failed → fall back to 1.0.0]
-    B -- new / gen-l10n --> D[Read config.version / minCliVersion<br/>i.e. the project template version]
+    B -- new / gen-l10n --> D[Read config.minCliVersion<br/>i.e. the project template version]
     D --> E{skip-version-check?}
     E -- yes --> G
-    D --> F{minCliVersion <= cliVersion?}
-    F -- no --> X[Error: CLI too low / unknown template version]
+    E -- no --> F{minCliVersion <= cliVersion?}
+    F -- no --> X[Error: CLI too low]
     F -- yes --> G
-    E -- no --> F
     G{Command type}
     G -- new --> H[Pinned download of feature brick at the project template version]
     G -- gen-l10n --> I[Generate l10n code locally]
@@ -124,7 +121,7 @@ flowchart TD
 | `1.0.0` | `1.0.0` | `1.1.0` | Pass; `new` downloads `1.0.0` template |
 | `1.0.1` | `1.1.0` | `1.1.0` | Pass; `new` downloads `1.0.1` template |
 | `1.0.1` | `1.1.0` | `1.0.0` | Error "CLI too low" |
-| `9.9.9` (not in registry) | — | any | Error "unknown template version" |
+| `9.9.9` (no such registry entry) | — | any | `new`: error "unknown template version"; `gen-l10n`: pass (no download — the gate only reads `minCliVersion`, absent means `0.0.0`) |
 | Old project (no `minCliVersion` → `0.0.0`) | `0.0.0` | `1.1.0` | Pass; gate `0.0.0 <= 1.1.0` always compatible |
 
 ---
@@ -145,3 +142,9 @@ corresponding version in the template registry `template_registry.json` **must s
 - CLI version spec: see [CLI Versioning](versioning-cli.md).
 - Template version spec: see [Template Versioning](versioning-template.md).
 - Release & decoupling process: see [Release Process](release.md).
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/versioning-rules.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/versioning-rules.md)*

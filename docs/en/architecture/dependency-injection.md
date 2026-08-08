@@ -116,3 +116,9 @@ Network-layer interceptors, storage implementations, and theme/i18n Provider swa
 - In tests, directly `getIt.reset()` then re-register mocks, or inject fake implementations into `getIt`.
 - Want to preload at startup? `await` your init logic inside `registerUserDependencies`.
 - Adding a third-party SDK: `registerUserDependencies` is the only extension point; keep `registerFeatureModules` for script maintenance.
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/architecture/dependency-injection.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/architecture/dependency-injection.md)*

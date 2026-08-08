@@ -197,3 +197,9 @@ EffectListener responsibility chain → Toast (message directly / code via AppEr
 5. **Cancel**: `cancel: () {}` silently.
 
 No `try/catch`, no `dio` import, no hand-written error-text mapping — all taken over by the packaging.
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/architecture/error-handling.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/architecture/error-handling.md)*

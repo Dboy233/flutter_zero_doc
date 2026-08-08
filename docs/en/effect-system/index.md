@@ -240,3 +240,9 @@ Toastification / EasyLoading actual render
 - **Effect system** = `UIEffect` (open base class) + `BlocEffectMixin` (stream) + `EffectListener` (responsibility chain) + three default handles; the business uses `is` to claim and returns `true` to intercept.
 - **Notifiers system** = `ToastService` / `LoadingService` (abstraction + internal Stream) + `NotifiersHost` (bridge to Context) + swappable implementers.
 - The boundary between the two is clear: **the BLoC only emits intent (emitEffect) and doesn't know what the Toast looks like; Notifiers only renders and doesn't know why the business triggered it**. This satisfies the MVI requirement of "one-shot side-effects separated from state".
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/effect-system/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/effect-system/index.md)*

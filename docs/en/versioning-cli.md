@@ -18,7 +18,7 @@ Version format `MAJOR.MINOR.PATCH` (e.g. `1.0.0`).
 
 ## Template Cache
 
-Cache and refresh rules of the template loader (`resolveBrickLoader`, implemented in `lib/src/template/template_source.dart`):
+Cache and refresh rules of the template loader (`TemplateSourceResolver`, implemented in `lib/src/template/template_source.dart`):
 
 > The cache directory is named by template version number first (`template_<version>`); on env-var override / fallback it degrades to a URL-hash name.
 > Different versions in the template registry naturally hit different cache directories, so old-version caches are never misused and no manual cleanup is needed.
@@ -56,3 +56,9 @@ To decide which position to bump, the key is whether you touched the **contract*
 
 - Template version spec: see [Template Versioning](versioning-template.md).
 - Three-version constraint relationship and command gating: see [Version Constraint Rules](versioning-rules.md).
+
+<!-- source-footer -->
+
+---
+
+*Source of this page: [docs/en/versioning-cli.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/versioning-cli.md)*

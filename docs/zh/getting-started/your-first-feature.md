@@ -263,3 +263,9 @@ flutter run
 6. 页面只渲染 `State`、只发射意图。
 
 更细的封装用法见 [BLoC 四个 Mixin](../architecture/bloc-mixins.md)、[错误处理与 Result](../architecture/error-handling.md)、[Effect 与 Notifiers](../effect-system/index.md)。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/getting-started/your-first-feature.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/getting-started/your-first-feature.md)*

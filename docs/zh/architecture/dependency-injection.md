@@ -116,3 +116,9 @@ getIt.registerLazySingleton<ToastService>(ToastificationToastService.new);
 - 测试时直接 `getIt.reset()` 后重新注册 mock，或给 `getIt` 注入假实现。
 - 想在启动时预加载？在 `registerUserDependencies` 里 `await` 你的初始化逻辑。
 - 新增第三方 SDK：`registerUserDependencies` 是唯一的扩展点，保持 `registerFeatureModules` 归脚本维护。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/architecture/dependency-injection.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/architecture/dependency-injection.md)*

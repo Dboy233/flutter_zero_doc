@@ -20,7 +20,7 @@ CLI 与模板是两条独立的版本线，二者通过 `template_registry.json`
 
 ## 模板缓存
 
-模板加载器（`resolveBrickLoader`，实现见 `lib/src/template/template_source.dart`）的缓存与刷新规则：
+模板加载器（`TemplateSourceResolver`，实现见 `lib/src/template/template_source.dart`）的缓存与刷新规则：
 
 > 缓存目录优先按模板版本号命名（`template_<版本>`），环境变量覆盖 / 回退时退化为按 URL 哈希命名。
 > 模板注册表中不同版本的 `url` 天然命中不同缓存目录，旧版本缓存不会被误用，无需手动清理。
@@ -58,3 +58,9 @@ CLI 与模板是两条独立的版本线，二者通过 `template_registry.json`
 
 - 模板版本规范见 [模板版本管理](versioning-template.md)。
 - 三版本约束关系与命令门禁见 [版本约束规则](versioning-rules.md)。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/versioning-cli.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/versioning-cli.md)*

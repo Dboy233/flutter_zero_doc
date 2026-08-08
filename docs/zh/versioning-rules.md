@@ -12,7 +12,7 @@
 
 | 实体 | 来源 | 含义 |
 |------|------|------|
-| **CLI 版本 `cliVersion`** | `flutter_zero_cli` 的 `pubspec.yaml` / `template_config.dart` 常量 | 当前运行的 fluzer 二进制版本，如 `1.1.0` |
+| **CLI 版本 `cliVersion`** | `flutter_zero_cli` 的 `pubspec.yaml` / `template_config.dart` 常量 | 当前运行的 fluzer 二进制版本，如 `1.2.0` |
 | **模板版本** | 模板注册表 `template_registry.json` 每条目的 `version` + `minCliVersion` | 一个发布的模板快照，及"能使用它的最低 CLI 版本" |
 | **项目模板版本** | 项目根 `flutter_zero_config.yaml` 的 `version` + `minCliVersion` | 该项目是由哪个模板版本创建的（如 `1.0.1`） |
 
@@ -40,17 +40,15 @@
 `new` / `gen-l10n` 都对已有项目执行，运行前统一做一道兼容门禁：
 
 ```text
-模板注册表（template_registry.json）中存在「项目模板版本」对应的条目
-  且  该条目的 minCliVersion <= 当前 CLI 版本 cliVersion   →  通过，执行命令
-否则                                              →  报错，拒绝执行
+项目 flutter_zero_config.yaml 中的 minCliVersion <= 当前运行的 CLI 版本 cliVersion   →  通过，执行命令
+否则                                                                    →  报错，拒绝执行
 ```
 
-其中「项目模板版本」取自项目 `flutter_zero_config.yaml` 的 `version` 字段。
+其中 `minCliVersion` 直接取自项目 `flutter_zero_config.yaml`（**离线读取，不查模板注册表**）。
 
-两种失败需区分提示：
+唯一失败原因：
 
-- 模板注册表中找不到「项目模板版本」对应的条目 → 报"项目模板版本未知，请确认 template_registry.json 或升级 fluzer"。
-- 找到了，但 `minCliVersion > 当前 CLI 版本` → 报"当前 CLI 版本过低，项目模板版本需要 CLI >= minCliVersion，请升级 fluzer"。
+- `config.minCliVersion > 当前 CLI 版本` → 报"当前 CLI 版本过低，项目模板版本需要 CLI >= minCliVersion，请升级 fluzer"。
 
 > 门禁依据的 `minCliVersion` 直接取自**项目 `flutter_zero_config.yaml`**（离线读取），
 > 不依赖联网拉取模板注册表，因此门禁稳定，且 `gen-l10n` 可保持离线执行。
@@ -83,7 +81,7 @@
 
 ### gen-l10n（已有项目，仅门禁，不下载）
 
-与 `new` 走**同一道门禁**：读 `config.version`（项目模板版本） → 查模板注册表 → 判定 `minCliVersion <= cliVersion`。
+与 `new` 走**同一道门禁**：读 `config.minCliVersion` → 判定 `minCliVersion <= cliVersion`（**离线，不查模板注册表**）。
 
 **但 `gen-l10n` 不下载任何模板**——它只在本地解析 `l10n.yaml` / `AppLocalizations` 并生成代码。
 门禁通过即本地执行，不通过则报错。
@@ -101,13 +99,12 @@ flowchart TD
     A[命令开始] --> B{作用于已有项目?}
     B -- create: 无项目 --> C[按 cliVersion 在模板注册表中<br/>选最大兼容版本下载]
     C --> C1[无兼容 / 拉取失败 → 回退 1.0.0]
-    B -- new / gen-l10n --> D[读 config.version / minCliVersion<br/>即项目模板版本]
+    B -- new / gen-l10n --> D[读 config.minCliVersion<br/>即项目模板版本]
     D --> E{skip-version-check?}
     E -- 是 --> G
-    D --> F{minCliVersion <= cliVersion?}
+    E -- 否 --> F{minCliVersion <= cliVersion?}
     F -- 否 --> X[报错: CLI 过低 / 未知模板版本]
     F -- 是 --> G
-    E -- 否 --> F
     G{命令类型}
     G -- new --> H[按项目模板版本钉死下载 feature brick]
     G -- gen-l10n --> I[本地生成 l10n 代码]
@@ -122,7 +119,7 @@ flowchart TD
 | `1.0.0` | `1.0.0` | `1.1.0` | 通过；`new` 下载 `1.0.0` 模板 |
 | `1.0.1` | `1.1.0` | `1.1.0` | 通过；`new` 下载 `1.0.1` 模板 |
 | `1.0.1` | `1.1.0` | `1.0.0` | 报错"CLI 过低" |
-| `9.9.9`（注册表无此条目） | — | 任意 | 报错"未知模板版本" |
+| `9.9.9`（注册表无此条目） | — | 任意 | `new`：报错"未知模板版本"；`gen-l10n`：通过（不下载，门禁只看 `minCliVersion`，缺失按 `0.0.0`） |
 | 老项目（无 `minCliVersion` → `0.0.0`） | `0.0.0` | `1.1.0` | 通过；门禁 `0.0.0 <= 1.1.0` 恒兼容 |
 
 ---
@@ -143,3 +140,9 @@ flowchart TD
 - CLI 版本规范见 [CLI 版本管理](versioning-cli.md)。
 - 模板版本规范见 [模板版本管理](versioning-template.md)。
 - 发布与解耦流程见 [发布流程](release.md)。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/versioning-rules.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/versioning-rules.md)*

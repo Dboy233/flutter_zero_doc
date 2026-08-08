@@ -197,3 +197,9 @@ EffectListener 责任链 → Toast（message 直接 / code 按 AppErrorCodes / l
 5. **取消**：`cancel: () {}` 静默。
 
 无需 `try/catch`、无需 import `dio`、无需手写错误文案映射——全部由封装接管。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/architecture/error-handling.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/architecture/error-handling.md)*

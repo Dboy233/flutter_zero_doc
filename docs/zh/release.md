@@ -12,9 +12,9 @@
 
 | 主题 | 文档 |
 |------|------|
-| 三仓库职责与架构 | `ARCHITECTURE.md` |
-| 模板版本规则（SemVer bump） | `flutter_zero_template/VERSIONING.md` |
-| CLI 版本规则与兼容逻辑 | `flutter_zero_cli/VERSIONING.md` |
+| 三仓库职责与架构 | [架构总览](architecture/index.md) |
+| 模板版本规则（SemVer bump） | [模板版本管理](versioning-template.md) |
+| CLI 版本规则与兼容逻辑 | [CLI 版本管理](versioning-cli.md) |
 | 模板分发机制（registry） | `flutter_zero_template/template_registry.json` |
 
 **版本规则一句话**：
@@ -129,8 +129,8 @@ dart test
 
 ### C3. 发布 CLI（仅当 C2 判定需要）
 
-1. 更新 `lib/src/template/template_config.dart` 的 `cliVersion` 常量（**必须与 `pubspec.yaml` 同步**）。
-2. 若模板 MAJOR，确认 `resolveBrickLoader` 的 `minCliVersion` 校验兼容。
+1. 更新 `lib/src/config/template_config.dart` 的 `cliVersion` 常量（**必须与 `pubspec.yaml` 同步**）。
+2. 若模板 MAJOR，确认 `TemplateSourceResolver.resolve()` 的 `minCliVersion` 校验兼容。
 3. 重新跑 `dart analyze` + `dart test`。
 4. 发布：
    ```bash
@@ -161,6 +161,10 @@ dart test
 - [ ] `dart analyze` 0 issues
 - [ ] `dart test` 全绿
 - [ ] 占位 URL 已替换为真实地址（见附录 3.1）
+- [ ] `CHANGELOG.md` 与 `CHANGELOG_CN.md` 顶部已同步新增，且中英文内容对齐
+- [ ] `dart pub publish --dry-run` 预检通过（确认无 missing dependency 等错误）
+- [ ] 若改过 i18n 文案，已执行 `dart run slang` 重新生成 `strings*.g.dart`
+- [ ] `pubspec.yaml` 的 `dependencies` 已显式声明 `intl`（slang 纯 Dart 模式生成物仍 `import 'package:intl/intl.dart'`）
 - [ ] `dart pub publish` 成功
 
 ---
@@ -169,12 +173,16 @@ dart test
 
 ### 3.1 占位待替换（发布前必填）
 
-位置：`flutter_zero_cli/lib/src/template/template_config.dart`
+位置：`flutter_zero_cli/lib/src/config/template_config.dart`
 
 - `templateRegistryUrl` → 真实 raw URL
   `https://raw.githubusercontent.com/OWNER/REPO/main/template_registry.json`
 - `defaultTemplateZipUrl` → 真实 Release **固定版本** URL（作为拉取失败时的兜底）
 - `cliVersion` → 与 `pubspec.yaml` 同步（每次 CLI 发版必改）
+
+> ⚠️ **禁止修改 `minimumSupportedVersion`**：该常量表示「CLI 能接受的最老模板版本门槛」，
+> 与 CLI 自身版本（`cliVersion`）无关。若顺手把它改成 CLI 版本，会错误排斥 `1.0.x` 等正常旧模板，
+> 破坏门禁。它应始终保持 `1.0.0` 不变。
 
 ### 3.2 命令速查
 
@@ -190,3 +198,9 @@ dart test
 ---
 
 > 文档维护：本流程随发布实践演进。若发现步骤与实际不符，优先更新本文与两份 `versioning-xxx.md`。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/release.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/release.md)*

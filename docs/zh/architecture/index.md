@@ -18,7 +18,7 @@
 
 ## 2. `fluzer create` 生成的项目目录结构
 
-`create` 渲染 `project` brick 后执行 `flutter create` / `pub get` / `gen-l10n` / `build_runner`，得到如下 `lib/`：
+`create` 渲染 `project` brick 后执行 `flutter create` / `pub get` / `gen-l10n`，得到如下 `lib/`：
 
 ```
 lib/
@@ -216,3 +216,9 @@ DI 由三个文件协作（`core/di/`，详见 [依赖注入](dependency-injecti
 当前 `HomeState` 直接持有数据层 DTO `PostModel`（`home_state.dart` import `data/models/post_model.dart`）。严格分层要求 State 持有 **presentation 层 UiModel**（`PostModel` → `PostUiModel` 在 Bloc 内映射），让 `presentation/` 不向下依赖 `data/`。
 
 本项目作为 BLoC-MVI 模板接受这一主流取舍；若你追求最严格的分层，可在 Bloc 内做一层 `PostModel → PostUiModel` 映射再进 State。这不影响 MVI 的合规性。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/architecture/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/architecture/index.md)*

@@ -209,3 +209,9 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
 - `BlocEffectMixin` 发 Loading / Toast。
 - `BlocErrorHandlerMixin` 用 `runToResult` 消除 `try/catch`。
 - （取消场景）若需要，`BlocCancelTokenMixin` 的 `token('login')` 可中断登录请求。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/architecture/bloc-mixins.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/architecture/bloc-mixins.md)*

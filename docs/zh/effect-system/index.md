@@ -239,3 +239,9 @@ Toastification / EasyLoading 实际渲染
 - **Effect 系统** = `UIEffect`（开放基类）+ `BlocEffectMixin`（流）+ `EffectListener`（责任链）+ 三默认 handle；业务用 `is` 认领、返回 `true` 拦截。
 - **Notifiers 系统** = `ToastService` / `LoadingService`（抽象 + 内部 Stream）+ `NotifiersHost`（桥接 Context）+ 可替换实现者。
 - 两者的边界清晰：**BLoC 只发意图（emitEffect），不知道 Toast 长什么样；Notifiers 只渲染，不知道业务为何触发**。这满足了「一次性副作用与状态分离」的 MVI 要求。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/effect-system/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/effect-system/index.md)*

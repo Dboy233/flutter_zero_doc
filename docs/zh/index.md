@@ -5,7 +5,7 @@ Flutter Zero 是一套 **企业级 Flutter MVI 模板**，由三个独立仓库�
 | 仓库 | 角色 |
 |------|------|
 | `flutter_zero_app` | 示例应用（模板落地后的真实项目样例，含 `home` / `counter` / `search` / `login` / `settings` 模块演示） |
-| `flutter_zero_cli` | 脚手架工具 `fluzer`（创建项目、生成功能模块、检查更新） |
+| `flutter_zero_cli` | 脚手架工具 `fluzer`（创建项目、生成功能模块、生成类型安全的国际化访问层、管理模板缓存、检查更新） |
 | `flutter_zero_template` | 纯模板源（Mason Brick），`fluzer` 由此渲染出项目与模块骨架 |
 
 ---
@@ -43,7 +43,13 @@ Flutter Zero 是一套 **企业级 Flutter MVI 模板**，由三个独立仓库�
   - [错误处理与 Result](architecture/error-handling.md) —— 异常归一化、`Result<T>`、业务状态码处理。
   - [依赖注入](architecture/dependency-injection.md) —— `get_it` 三文件约定与模块自动注册。
 - **[CLI 参考](cli/)** —— `fluzer` 命令、目录结构、配置、调试环境变量。
-- **发布与版本** —— [发布流程](release.md) / [CLI 版本管理](versioning-cli.md) / [模板版本管理](versioning-template.md)。
+- **发布与版本** —— [版本约束规则](versioning-rules.md) / [发布流程](release.md) / [CLI 版本管理](versioning-cli.md) / [模板版本管理](versioning-template.md)。
 
 !!! note "关于网络层"
     网络请求封装（`DioClient`、拦截器）属于数据层细节，本身不在文档主体展开；业务侧只需关心 `Repository` 暴露的方法与抛出的异常类型（`AppException` 及其子类）。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/index.md)*

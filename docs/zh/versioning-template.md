@@ -50,3 +50,9 @@
 
 - CLI 版本规范见 [CLI版本管理](versioning-cli.md)。
 - 三版本约束关系与命令门禁见 [版本约束规则](versioning-rules.md)。
+
+<!-- source-footer -->
+
+---
+
+*本页原文：[docs/zh/versioning-template.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/versioning-template.md)*
