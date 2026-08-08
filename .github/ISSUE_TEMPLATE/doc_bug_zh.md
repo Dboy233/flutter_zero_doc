@@ -1,3 +1,11 @@
+---
+name: 文档错误反馈
+about: 报告文档中的错误、遗漏或不准确之处
+title: "[文档错误] "
+labels: documentation
+assignees: ''
+---
+
 ## 出错页面
 <!-- 请粘贴本页页脚“本页原文”的链接 -->
 
