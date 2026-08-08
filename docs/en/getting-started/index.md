@@ -125,3 +125,5 @@ After the skeleton is generated, the directory contains freezed empty shells (wi
 ---
 
 *Source of this page: [docs/en/getting-started/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/getting-started/index.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Fgetting-started%2Findex.md)*

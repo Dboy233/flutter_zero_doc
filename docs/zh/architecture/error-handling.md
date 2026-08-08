@@ -203,3 +203,5 @@ EffectListener 责任链 → Toast（message 直接 / code 按 AppErrorCodes / l
 ---
 
 *本页原文：[docs/zh/architecture/error-handling.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/architecture/error-handling.md)*
+
+*[报告本页错误](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_zh.md&title=%E3%80%90%E6%96%87%E6%A1%A3%E9%94%99%E8%AF%AF%E3%80%91docs%2Fzh%2Farchitecture%2Ferror-handling.md)*

@@ -148,3 +148,5 @@ corresponding version in the template registry `template_registry.json` **must s
 ---
 
 *Source of this page: [docs/en/versioning-rules.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/versioning-rules.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Fversioning-rules.md)*

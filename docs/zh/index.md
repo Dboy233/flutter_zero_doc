@@ -53,3 +53,5 @@ Flutter Zero 是一套 **企业级 Flutter MVI 模板**，由三个独立仓库�
 ---
 
 *本页原文：[docs/zh/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/index.md)*
+
+*[报告本页错误](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_zh.md&title=%E3%80%90%E6%96%87%E6%A1%A3%E9%94%99%E8%AF%AF%E3%80%91docs%2Fzh%2Findex.md)*

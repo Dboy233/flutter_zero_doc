@@ -400,3 +400,5 @@ Coverage highlights: project-name / feature-name validation, target directory al
 ---
 
 *Source of this page: [docs/en/cli/README.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/cli/README.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Fcli%2FREADME.md)*

@@ -203,3 +203,5 @@ No `try/catch`, no `dio` import, no hand-written error-text mapping — all take
 ---
 
 *Source of this page: [docs/en/architecture/error-handling.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/architecture/error-handling.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Farchitecture%2Ferror-handling.md)*

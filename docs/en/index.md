@@ -53,3 +53,5 @@ The template is built around two main threads; every abstraction serves them:
 ---
 
 *Source of this page: [docs/en/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/index.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Findex.md)*

@@ -222,3 +222,5 @@ This template, as a BLoC-MVI template, accepts this mainstream trade-off; if you
 ---
 
 *Source of this page: [docs/en/architecture/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/en/architecture/index.md)*
+
+*[Report an error on this page](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_en.md&title=%5BDocs%20error%5D%20docs%2Fen%2Farchitecture%2Findex.md)*

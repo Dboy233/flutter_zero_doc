@@ -245,3 +245,5 @@ Toastification / EasyLoading 实际渲染
 ---
 
 *本页原文：[docs/zh/effect-system/index.md](https://github.com/Dboy233/flutter_zero_doc/blob/main/docs/zh/effect-system/index.md)*
+
+*[报告本页错误](https://github.com/Dboy233/flutter_zero_doc/issues/new?template=doc_bug_zh.md&title=%E3%80%90%E6%96%87%E6%A1%A3%E9%94%99%E8%AF%AF%E3%80%91docs%2Fzh%2Feffect-system%2Findex.md)*
