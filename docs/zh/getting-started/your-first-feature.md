@@ -65,39 +65,38 @@ abstract class LoginState with _$LoginState {
 
 ## 2. 写 Repository（继承 BaseRepository）
 
-仓库负责网络与解析，**业务状态码失败主动抛 `BusinessException`**。`BaseRepository` 已提供 `parseList` / `parseSingle` / `parseResponse` / `parseBusinessResponse`，无需手写 JSON 解析。
+仓库负责网络与解析。框架**不替你解析响应**，所有「发请求 / 解析 / 判断业务错误 / 抛异常」都在 `LoginRepository` 的公开方法里自行决定（见 [错误处理与 Result](../architecture/error-handling.md)）。`BaseRepository` 只持有 `Dio`，不提供任何 `parse*` 辅助方法。
 
 ```dart
 // login_repository.dart
 class LoginRepository extends BaseRepository {
-  const LoginRepository({required super.client});
+  const LoginRepository({required super.dio});
 
   Future<String> login({
     required String username,
     required String password,
     CancelToken? cancelToken,
   }) async {
-    final response = await client.post('/login', data: {
+    final response = await dio.post('/login', data: {
       'username': username,
       'password': password,
     });
 
     // 假设后端返回 {code:0, message:'ok', data:'昵称'}
-    return parseBusinessResponse<String, LoginResp>(
-      response,
-      parseBody: LoginResp.fromJson,
-      isSuccess: (body) => body.code == 0,
-      extractCode: (body) => body.code,
-      extractMessage: (body) => body.message,
-      extractData: (body) => body.data,
-    );
+    // 框架不替你解析：响应结构、业务码判断、如何抛错都由你决定。
+    final body = response.data as Map<String, dynamic>;
+    if (body['code'] != 0) {
+      // 业务码非 0 → 抛 Exception，文案来自后端 message，交给 Bloc 的 failure 分支
+      throw Exception(body['message']?.toString() ?? 'login failed');
+    }
+    return body['data'] as String; // 昵称
   }
 }
 ```
 
-- HTTP 非 2xx → 自动抛 `ServerException`，由 `ErrorHandler` 按 HTTP 码兜底翻译。
-- HTTP 200 但 `code != 0` → 抛 `BusinessException`，文案来自后端 `message`。
-- 纯客户端校验（如空用户名）也可直接 `throw const BusinessException('用户名或密码不能为空')`。
+- HTTP 非 2xx → Dio 直接抛 `DioException`；如需统一提示，可在 Bloc 的 `failure` 分支用 `ex.toToastEffect()` 直接展示（框架不做自动翻译）。
+- HTTP 200 但业务码非 0 → 抛 `Exception`（文案来自后端 `message`），交给上层 Bloc 的 `failure` 分支处理。
+- 纯客户端校验（如空用户名）也可直接 `throw Exception('用户名或密码不能为空')`。
 
 ---
 
@@ -132,7 +131,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
     emitEffect(const LoadingEffect(show: true));
 
     // 2) 统一错误处理：成功 / 失败 / 取消 三态显式
-    final result = await runToResult(
+    final result = await runCatching(
       () => repository.login(
         username: state.username,
         password: state.password, 
@@ -160,7 +159,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
 
 要点：
 
-- **`runToResult`** 取代手写 `try/catch`：网络异常 / 取消都被归一化，你只需处理三态。
+- **`runCatching`** 取代手写 `try/catch`：网络异常 / 取消被包装为三态 `Result`，你只需处理三态；`Failure` 携带原始 `Exception`，不做归一化。
 - **`LoadingEffect`** 不经过业务 handle，由框架默认 handle 调 `LoadingService` 显示/隐藏全局 Loading。
 - **`ToastEffect(l10nCode: ...)`** 用自定义本地化键，由业务 handle 翻译（见第 4 步）。若只想显示服务端文案，可直接用 `ToastEffect(message: ex.message)` 或 `ex.toToastEffect()`。
 
@@ -242,7 +241,7 @@ flutter run
 ```
 点击登录 → bloc.submit()（可 await）
   → emit(isSubmitting:true) + emitEffect(LoadingEffect(show:true))
-  → runToResult(repository.login)
+  → runCatching(repository.login)
   → emitEffect(LoadingEffect(show:false))
   → result.when: 成功→emit(state)+Toast(l10nCode:loginSuccess)
                失败→emit(state)+Toast(l10nCode:loginFailed)
@@ -257,8 +256,8 @@ flutter run
 
 1. `fluzer new <name>` 生成骨架。
 2. `Event` / `State` 用 freezed；状态不可变。
-3. `Repository extends BaseRepository`，用 `parseBusinessResponse` 等业务状态码解析，失败抛 `BusinessException`。
-4. Bloc `with` 四个 Mixin：`onAwait` 做可等待操作，`runToResult` 做统一错误处理，`emitEffect(LoadingEffect/ToastEffect)` 做一次性副作用。
+3. `Repository extends BaseRepository`，用 `dio` 直接发请求并手动解析响应、按需 `throw Exception`，框架不做任何解析假设。
+4. Bloc `with` 四个 Mixin：`onAwait` 做可等待操作，`runCatching` 做统一错误处理，`emitEffect(LoadingEffect/ToastEffect)` 做一次性副作用。
 5. `effects/<name>_effect_handle.dart` 只翻译自定义 `l10nCode`，其余交默认 handle。
 6. 页面只渲染 `State`、只发射意图。
 

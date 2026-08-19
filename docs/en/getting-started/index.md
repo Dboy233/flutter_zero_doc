@@ -84,7 +84,7 @@ class LoginModule {
   LoginModule._();
   static void register(GetIt getIt) {
     getIt.registerLazySingleton<LoginRepository>(
-      () => LoginRepository(client: getIt<DioClient>()),
+      () => LoginRepository(dio: getIt<Dio>()),
     );
   }
 }

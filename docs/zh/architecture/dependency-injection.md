@@ -52,13 +52,13 @@ class LoginModule {
   LoginModule._();
   static void register(GetIt getIt) {
     getIt.registerLazySingleton<LoginRepository>(
-      () => LoginRepository(client: getIt<DioClient>()),
+      () => LoginRepository(dio: getIt<Dio>()),
     );
   }
 }
 ```
 
-> **重要约定**：`DioClient`、`Repository`、`Service` 注册为 `lazySingleton`；**BLoC 不进 DI**，由 `BlocProvider` 在页面创建（避免长期持有导致内存泄漏）。
+> **重要约定**：`Repository`、`Service` 注册为 `lazySingleton`；`Dio` 由框架基础设施统一注册；**BLoC 不进 DI**，由 `BlocProvider` 在页面创建（避免长期持有导致内存泄漏）。
 
 ---
 
@@ -70,7 +70,7 @@ class LoginModule {
 abstract class SharesRepositories {
   static void register(GetIt getIt) {
     getIt.registerLazySingleton<UserRepository>(
-      () => UserRepository(client: getIt<DioClient>()),
+      () => UserRepository(dio: getIt<Dio>()),
     );
   }
 }

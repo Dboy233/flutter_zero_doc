@@ -7,7 +7,7 @@
 | `BlocAwaitMixin` | `add(Event)` is fire-and-forget; the UI cannot `await` |
 | `BlocCancelTokenMixin` | Network request cancellation / deduplication, bound to the BLoC lifecycle |
 | `BlocEffectMixin` | One-shot side-effect channel (Toast / Loading / Dialog) |
-| `BlocErrorHandlerMixin` | Normalizes low-level exceptions into `AppException`, expresses three states via `Result<T>` |
+| `BlocErrorHandlerMixin` | Wraps exceptions into `Result<T>` (success / failure / cancel); `Failure` carries the raw `Exception` |
 
 Unified export: `import 'package:flutter_zero_app/core/bloc/bloc.dart';`
 
@@ -81,8 +81,8 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
       emit(state.copyWith(items: items));
     } catch (e) {
       if (isCancelled(e)) return; // active cancel → silent, no need to import Dio
-      final ex = handleError(e); // works with BlocErrorHandlerMixin
-      if (ex != null) emitEffect(ex.toToastEffect());
+      final ex = e is Exception ? e : Exception(e.toString());
+      emitEffect(ex.toToastEffect());
     }
   }
 
@@ -122,9 +122,9 @@ When the BLoC is closed, the Mixin automatically `close()`s the controller — n
 
 ## 4. BlocErrorHandlerMixin — Unified Error Handling
 
-Normalizes low-level exceptions (Dio, etc.) into `AppException`, and wraps the result as `Result<T>` (success / failure / cancel).
+Wraps exceptions from low-level async operations (Dio, etc.) into `Result<T>` (success / failure / cancel). `Failure` **carries the raw `Exception`** — the framework makes no business or message assumption; the BLoC decides the toast text (see [Error Handling & Result](../architecture/error-handling.md)).
 
-### Preferred: `runToResult`
+### Preferred: `runCatching`
 
 Replaces hand-written `try/catch`, with three explicit states:
 
@@ -133,7 +133,7 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
     with BlocEffectMixin<ItemState>, BlocErrorHandlerMixin<ItemState> {
 
   Future<void> _onFetch(ItemFetch event, Emitter<ItemState> emit) async {
-    final result = await runToResult(() => _repository.fetchItems());
+    final result = await runCatching(() => _repository.fetchItems());
     result.when(
       success: (items) => emit(state.copyWith(items: items)),
       failure: (ex) => emitEffect(ex.toToastEffect()),
@@ -143,36 +143,16 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
 }
 ```
 
-### Callback style: `runWithErrorHandling`
-
-```dart
-await runWithErrorHandling(
-  () => _repository.fetchItems(),
-  onSuccess: (items) => emit(state.copyWith(items: items)),
-  onError: (ex) => emitEffect(ex.toToastEffect()),
-);
-```
+`runCatching` mapping: success → `Success`; `Exception` → `Failure(e)` (kept as-is); active cancel → `Cancel`; other errors → `Failure(Exception('unknown exception'))`.
 
 ### Capability list
 
 | Method | Purpose |
 |--------|---------|
-| `runToResult<T>(action)` | Wrap an async action, return `Result<T>`; cancel → `Cancel`, other exceptions → `Failure(AppException)` |
-| `runWithErrorHandling(action, onSuccess, onError)` | Callback style; returns `null` on error/cancel |
-| `handleError(error)` | Convert any raw exception to `AppException`; returns `null` on cancel |
-| `isCancelled(error)` | Check whether it is an active cancel (avoid showing a Toast) |
-| `errorHandler` (overridable) | Inject a custom `ServerMessageExtractor` and other strategies |
+| `runCatching<T>(action)` | Wrap an async action, return `Result<T>`; cancel → `Cancel`, `Exception` → `Failure(e)`, other → `Failure(Exception('unknown exception'))` |
+| `isCancelled(error)` | Check whether it is an active cancel (Dio cancel exception), to avoid showing a Toast |
 
-### Custom error strategy
-
-If the backend uses a different message field name, override `errorHandler`:
-
-```dart
-@override
-ErrorHandler get errorHandler => ErrorHandler(
-  serverMessageExtractor: ServerMessageExtractor(['msg', 'errorMessage']),
-);
-```
+> Cancel detection defaults to Dio's `DioExceptionType.cancel`. Override `isCancelled` when using another HTTP client.
 
 ---
 
@@ -192,7 +172,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
   Future<void> _onSubmit(LoginSubmit event, Emitter<LoginState> emit) async {
     emit(state.copyWith(isSubmitting: true));
     emitEffect(const LoadingEffect(show: true));
-    final result = await runToResult(
+    final result = await runCatching(
       () => repository.login(username: state.username, password: state.password),
     );
     emitEffect(const LoadingEffect(show: false));
@@ -207,7 +187,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
 
 - `BlocAwaitMixin` lets the page `await submit()` then navigate.
 - `BlocEffectMixin` emits Loading / Toast.
-- `BlocErrorHandlerMixin` uses `runToResult` to eliminate `try/catch`.
+- `BlocErrorHandlerMixin` uses `runCatching` to eliminate `try/catch`.
 - (Cancel scenario) if needed, `BlocCancelTokenMixin`'s `token('login')` can interrupt the login request.
 
 <!-- source-footer -->

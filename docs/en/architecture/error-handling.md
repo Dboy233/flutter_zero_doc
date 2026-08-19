@@ -1,84 +1,48 @@
 # Error Handling & Result
 
-The template converges "countless low-level exceptions" into "the business layer only handles one exception type, `AppException`", then uses `Result<T>` to make the three terminal states of an async operation (success / failure / cancel) explicit. This page explains how to use this packaging.
+The template follows a **"zero wrapping, zero business assumptions"** principle for error handling: the framework does **not** catch, convert, or normalize any exception for you, nor does it parse responses for you. Everything — how to send the request, how to parse, how to throw — is decided by the developer inside the repository's public methods. This page explains the **minimal** contract the template provides.
 
-Related files: `core/error/`, `core/result/`, `core/storage/base_repository.dart`.
+Related files: `core/result/`, `core/network/base_repository.dart`, `core/effect/`, `core/bloc/bloc_error_handler_mixin.dart`.
 
 ---
 
-## 1. Exception Normalization: `AppException`
+## 1. Why there is no `AppException` / `ErrorHandler`
 
-Low-level `DioException`, JSON parse errors, business-status-code failures … are all unified into subclasses of `AppException`; the business layer no longer imports `dio`.
+Starting from 2.0.0, the old `AppException` system (including `ErrorHandler` / `AppErrorCodes` / `ServerMessageExtractor`) has been **removed entirely**. Reasons:
 
-Each exception carries:
-
-- `message`: a human-readable text suitable for display (usually from the server and already translated; may be `null`).
-- `code`: HTTP status code (401/404/500…) or an internal sentinel code (see `AppErrorCodes`).
-- `originalError`: the raw low-level exception that triggered it.
+- The framework cannot predict your backend's response shape (field names, whether it wraps `{code,message,data}`, business-code rules), so forcing normalization would only push assumptions onto you.
+- `BaseRepository` only holds a `Dio` instance and **performs no response handling**: no parsing, no HTTP status validation, no exception throwing.
 
 ```dart
-abstract class AppException implements Exception {
-  ToastEffect toToastEffect() => ToastEffect(message: message, code: code);
+abstract class BaseRepository {
+  const BaseRepository({required this.dio});
+  final Dio dio;
 }
 ```
 
-Built-in subclasses (`core/error/app_exception.dart`):
-
-| Subclass | Trigger scenario |
-|----------|------------------|
-| `NetworkException` | No network / DNS failure (`connectionError`) |
-| `ServerException` | HTTP 4xx/5xx (`badResponse`) |
-| `AuthException` | 401 / 403 |
-| `TimeoutException` | Connect / send / receive timeout (falls back to HTTP 408) |
-| `ParseException` | JSON parse failure or unexpected structure |
-| `BusinessException` | **HTTP 200 but business-status-code failure** (e.g. `{code:10001, message:"out of stock"}`) |
-| `UnknownException` | Other errors that cannot be classified |
-
-> `AppException` is **abstract, not sealed**: any library can `extends AppException` to add custom business exceptions, without modifying the framework.
+So network exceptions (`DioException`) are thrown **as-is**; each repository's public method decides what to do — catch, convert, or pass through to the upper layer.
 
 ---
 
-## 2. The Single Conversion Point: `ErrorHandler`
-
-All exception mapping goes through `ErrorHandler`, guaranteeing a consistent experience. `BlocErrorHandlerMixin` already holds it internally; the business layer usually doesn't touch it directly.
-
-```dart
-final handler = ErrorHandler();
-try {
-  await fetch();
-} on Object catch (e, stackTrace) {
-  final ex = handler.handle(e); // AppException? — returns null on cancel
-  if (ex != null) showToast(ex.message ?? 'error');
-}
-```
-
-- **Server message extraction**: by default it reads in order `message` / `error` / `errorMsg` / `msg`. Different backend field names? Pass them at construction:
-  ```dart
-  ErrorHandler(serverMessageExtractor: ServerMessageExtractor(['msg', 'errorMessage']))
-  // or override the errorHandler getter in the BLoC
-  ```
-- **Cancel recognition**: `handler.isCancelled(error)` — `DioExceptionType.cancel` returns `true`, and should be silently ignored (no Toast, no state change).
-- **No hard-coded text**: timeout / no-connection / unknown errors carry no hard-coded text; the `code` is left to the frontend to localize via `AppErrorCodes` (see section 5).
-
----
-
-## 3. Three-State Result: `Result<T>`
+## 2. Three-State Result: `Result<T>`
 
 `core/result/result.dart` uses a sealed class to make async terminal states explicit, replacing `try/catch/if-cancelled` boilerplate:
 
 ```dart
 sealed class Result<T> { ... }
 final class Success<T> extends Result<T> { final T value; }
-final class Failure<T> extends Result<T> { final AppException exception; }
+final class Failure<T> extends Result<T> { final Exception exception; }  // wraps Exception
 final class Cancel<T> extends Result<T> { const Cancel(); }
 ```
+
+> `Failure` carries an `Exception` (not some framework exception type). Any exception — whether a `DioException` or your own custom `Exception` — is uniformly wrapped into `Failure`, and the business layer only handles three states: success / failure (with Exception) / cancel.
 
 Extension methods:
 
 ```dart
 result.when(
   success: (value) => emit(state.copyWith(data: value)),
-  failure: (ex) => emitEffect(ex.toToastEffect()),
+  failure: (ex) => emitEffect(ex.toToastEffect()),  // ex is an Exception
   cancel: () {/* active cancel, usually do nothing */},
 );
 
@@ -90,12 +54,12 @@ result.isSuccess / isFailure / isCancel;
 
 ---
 
-## 4. Using It in the BLoC: `BlocErrorHandlerMixin`
+## 3. Using It in the BLoC: `BlocErrorHandlerMixin`
 
 The most concise writing (replaces hand-written `try/catch`):
 
 ```dart
-final result = await runToResult(() => repository.fetch());
+final result = await runCatching(() => repository.fetch());
 result.when(
   success: (items) => emit(state.copyWith(items: items)),
   failure: (ex) => emitEffect(ex.toToastEffect()),
@@ -107,96 +71,89 @@ Capability list:
 
 | Method | Purpose |
 |--------|---------|
-| `runToResult<T>(action)` | Wrap an async action → `Result<T>`; cancel → `Cancel`, other exceptions → `Failure(AppException)` |
-| `runWithErrorHandling(action, onSuccess, onError)` | Callback style; returns `null` on error/cancel |
-| `handleError(error)` | Any exception → `AppException?` (null on cancel) |
-| `isCancelled(error)` | Check whether it is an active cancel |
-| `errorHandler` (overridable) | Inject a custom `ServerMessageExtractor` |
+| `runCatching<T>(action)` | Wrap an async action → `Result<T>`; success → `Success`; `Exception` → `Failure(Exception)`; active cancel → `Cancel`; other errors → `Failure(Exception(...))` |
+| `isCancelled(error)` | Whether it is an active cancel (`DioExceptionType.cancel`) |
 
-The resolution priority of `ex.toToastEffect()` (see [Effect & Notifiers](../effect-system/index.md)): display `message` directly → fall back to `code` via `AppErrorCodes` → if it carries an `l10nCode`, it must be translated by the business handle.
+`ex.toToastEffect()` comes from the `ExceptionToToast` extension (see section 4); `ex` is an `Exception`, so it can be called directly.
 
 ---
 
-## 5. Error Codes & Localization: `AppErrorCodes`
+## 4. Exception → Toast: `ExceptionToToast`
 
-`core/error/app_error_codes.dart` defines internal codes (a negative namespace, to avoid colliding with HTTP) and common HTTP code constants:
+`core/effect/ui_effect.dart` provides a lightweight extension that turns any `Exception` into a one-shot Toast effect:
 
-| Category | Constant |
-|----------|----------|
-| Internal | `unknown=-1` / `parseFromJson=-2` / `parseNullData=-3` / `parseWrongType=-4` / `noConnection=-5` |
-| 4xx | `badRequest=400` … `tooManyRequests=429` |
-| 5xx | `internalServerError=500` … `gatewayTimeout=504` |
+```dart
+extension ExceptionToToast on Exception {
+  String? get errorMessage;        // Exception('msg') → 'msg'; returns null when empty
+  ToastEffect toToastEffect() => ToastEffect(message: errorMessage);
+}
+```
 
-`defaultToastHandle` maps these codes to localized text (e.g. `error404` → "The requested resource does not exist"); unlisted codes fall back to `unknownErrorCode`. So **even if the backend returns no text, the user still sees a readable error prompt**.
+Convention: an exception thrown as `Exception('text')` exposes its quoted text as the `ToastEffect.message`; the framework **makes no business or type assumption** — for custom localization or error codes, build the `ToastEffect` yourself (with `l10nCode` / `code`), or define a custom exception type that exposes text.
+
+---
+
+## 5. Toast Resolution Priority
+
+`default_toast_effect_handle.dart` (the framework default handle) resolves a `ToastEffect` by this priority:
+
+1. **`message`**: fixed / server text, used first;
+2. **`l10nCode`**: a developer-defined localization key, resolved by a business handle per the project's i18n setup (unclaimed → debug warning, release silent);
+3. **`code`**: an internal network error code (HTTP status or custom sentinel), mapped to `l.unknownError(code)` as fallback;
+4. None of the above → `l.unknownError('Unknown')`.
+
+See [Effect & Notifiers](../effect-system/index.md).
 
 ---
 
 ## 6. Using It in the Repository: `BaseRepository`
 
-The repository extends `BaseRepository`, so you don't write JSON parsing and error checks by hand.
-
-### Flat responses: `parseList` / `parseSingle` / `parseResponse`
+The repository extends `BaseRepository` and uses `dio` directly; **parsing and error judgment are up to you**:
 
 ```dart
 class UserRepository extends BaseRepository {
   Future<List<User>> fetchUsers({CancelToken? cancelToken}) async {
-    final res = await client.get<List<dynamic>>('/users', cancelToken: cancelToken);
-    return parseList(res, User.fromJson);      // data is an array
-    // or parseSingle(res, User.fromJson);       // data is a single object
-    // or parseResponse<ApiResp>(res, ApiResp.fromJson); // nested structure to freezed
+    final res = await dio.get<List<dynamic>>('/users', cancelToken: cancelToken);
+    // Parse res.data yourself (e.g. json_serializable / freezed fromJson)
+    return (res.data as List).map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
   }
 }
 ```
 
-A type mismatch automatically throws `ParseException` (with the corresponding `AppErrorCodes`).
+Key points:
 
-### Business status code: `parseBusinessResponse`
+- The framework provides no `parseList` / `parseSingle` / `parseResponse` / `parseBusinessResponse`, and does not intercept HTTP status codes.
+- Whether to treat non-2xx as failure, or judge success by a business code `{code,message,data}`, is entirely your decision.
+- Network exceptions are thrown as-is; in the BLoC, `runCatching` wraps them into `Failure(Exception)`, which is then reported via `toToastEffect()`.
 
-HTTP 200 but `code != 0` in the body means a business failure. **The framework does not guess field names**; you provide the parsing and extraction logic, and it throws `BusinessException` after confirming 2xx:
+### Business status code (handle it yourself)
+
+If the backend wraps with `{code,message,data}`, you read and judge it yourself:
 
 ```dart
 Future<String> login({required String username, required String password}) async {
-  final res = await client.post('/login', data: {...});
-  return parseBusinessResponse<String, LoginResp>(
-    res,
-    parseBody: LoginResp.fromJson,
-    isSuccess: (b) => b.code == 0,           // business success judgment
-    extractCode: (b) => b.code,              // optional: error code
-    extractMessage: (b) => b.message,        // optional: server text
-    extractData: (b) => b.data,              // data extracted on success
-  );
+  final res = await dio.post('/login', data: {...});
+  final body = res.data as Map<String, dynamic>;
+  if (body['code'] != 0) {
+    throw Exception(body['message'] ?? 'login failed');  // throw a plain exception; BLoC reports via toToastEffect
+  }
+  return body['data'] as String;
 }
 ```
 
-- Non-2xx response → immediately throws `ServerException` (fallback by HTTP code in `ErrorHandler`).
-- 2xx but `isSuccess` is false → throws `BusinessException(extractMessage, code: extractCode)`.
-- Pure client-side validation (e.g. empty username) can also directly `throw const BusinessException('Username or password cannot be empty')`.
-
-### Full chain
-
-```
-Repository throws AppException
-   ↓ (DioException already converted in ErrorHandler; BusinessException thrown by you)
-BlocErrorHandlerMixin.runToResult
-   ↓
-Result<T>.when(success / failure / cancel)
-   ↓
-failure → emitEffect(ex.toToastEffect())
-   ↓
-EffectListener responsibility chain → Toast (message directly / code via AppErrorCodes / l10nCode business handle)
-```
+You can also directly `throw Exception('username or password cannot be empty')` for client-side validation.
 
 ---
 
 ## 7. Quick Reference: How a Feature Handles Errors
 
-1. **Repository**: `extends BaseRepository`, uses `parseBusinessResponse` etc.; throws `BusinessException` on business failure.
-2. **Bloc**: `with BlocErrorHandlerMixin`, `runToResult(() => repo.xxx())`, `result.when` handles three states.
+1. **Repository**: `extends BaseRepository`, use `dio` to send requests, parse `res.data` yourself; throw `Exception(...)` on business failure.
+2. **Bloc**: `with BlocErrorHandlerMixin`, `runCatching(() => repo.xxx())`, `result.when` handles three states.
 3. **Success**: `emit(state.copyWith(...))`.
-4. **Failure**: `emitEffect(ex.toToastEffect())` (auto-fallback by message / code, or a custom `l10nCode` goes through the business handle).
+4. **Failure**: `emitEffect(ex.toToastEffect())` (text decided by `message` / `l10nCode` / `code`, see section 5).
 5. **Cancel**: `cancel: () {}` silently.
 
-No `try/catch`, no `dio` import, no hand-written error-text mapping — all taken over by the packaging.
+The framework does not write error-text mappings for you, does not intercept HTTP status, and does not guess field names — all of that belongs to the developer's repository code.
 
 <!-- source-footer -->
 

@@ -42,9 +42,9 @@ fluzer version         # 查看版本 + 检查更新
 
 | 命令 | 作用 | 常用选项 |
 |------|------|----------|
-| `fluzer new <feature_name>` | 在当前模板项目内新增功能模块并注册 DI | `--build-runner` / `--no-build-runner`、`--skip-version-check` |
+| `fluzer new <feature_name>` | 在当前模板项目内新增功能模块并注册 DI | — |
 | `fluzer create <project_name>` | 从模板创建全新 Flutter 项目 | `--org` |
-| `fluzer gen-l10n` | 生成 L10nCode 访问层并自动接线 toast 分发 | `--skip-version-check` / `--skip-handle-patch` / `--force-handle-patch` |
+| `fluzer gen-l10n` | 生成 L10nCode 访问层并自动接线 toast 分发 | `--skip-handle-patch` / `--force-handle-patch` |
 | `fluzer cache list` | 查看已下载缓存的模板版本 | — |
 | `fluzer cache clean` | 清空所有缓存的模板版本 | — |
 | `fluzer version` | 打印 CLI 版本并检查 pub.dev 更新 | — |
@@ -64,24 +64,21 @@ fluzer version         # 查看版本 + 检查更新
 
 ## 3. `new` —— 新增功能模块
 
-必须在 **Flutter Zero 模板项目根目录**（含 `flutter_zero_config.yaml`）下执行。
+必须在 **Flutter Zero 模板项目根目录**（含 `fluzer.yaml`，旧项目使用的 `flutter_zero_config.yaml` 仍可识别）下执行。
 
 执行流程：
 
-1. 加载 `flutter_zero_config.yaml` 并执行**版本门禁**（`config.minCliVersion <= cliVersion` 才放行）。
-2. 按 `config.version` **精确钉死**解析模板来源。
-3. 校验功能名（必须是 `snake_case`，小写字母开头，例如 `user_profile`）。
-4. 检查 `lib/features/<name>/` 是否已存在。
-5. 用 Mason 渲染 `feature` brick（仅传 brick 声明的 `name` + `package_name` 变量，类名大小写由 brick 内 Mustache 过滤器处理）。
-6. 通过 `FeatureRegistration`（底层 `CodeMod`）把模块写入 `lib/core/di/injection_base.dart` 的 `registerFeatureModules()`。
-7. 运行 `build_runner`，仅构建新模块（`--build-filter lib/features/<name>/**.dart`）。
+1. 加载 `fluzer.yaml`（或兼容的 `flutter_zero_config.yaml`），校验 `version`（字符串非空且 `>= 1.0.0` 下限）与 `template_name`。
+2. 按项目 `version` 选择**版本适配器**（AdapterCommand）：版本超出当前 CLI 适配器支持范围时报错「请升级 fluzer」或「请升级模板/CLI」，否则进入命令。
+3. 按项目 `version` **精确钉死**解析模板来源（从 registry 取同名版本）。
+4. 校验功能名（必须是 `snake_case`，小写字母开头，例如 `user_profile`）。
+5. 检查 `lib/features/<name>/` 是否已存在。
+6. 用 Mason 渲染 `feature` brick（仅传 brick 声明的 `name` + `package_name` 变量，类名大小写由 brick 内 Mustache 过滤器处理）。
+7. 通过 `FeatureRegistration`（底层 `CodeMod`）把模块写入 `lib/core/di/injection_base.dart` 的 `registerFeatureModules()`。
+8. 运行 `build_runner`，仅构建新模块（`--build-filter lib/features/<name>/**.dart`）。
 
 ```bash
 fluzer new user
-
-# 选项
-#   --build-runner      生成后运行 build_runner（默认启用）
-#   --no-build-runner   跳过 build_runner（之后可手动 dart run build_runner build）
 ```
 
 > 生成的模块包含 `data/`、`domain/`、`presentation/` 骨架，并自动生成 `<name>_module.dart`。
@@ -227,7 +224,7 @@ fluzer cache clean    # 清空所有缓存的模板版本
 
 1. **`FLUZER_BRICKS_DIR`** 非空 → `LocalBrickLoader`（本地开发 / 调试，指向 `bricks/` 根目录）。
 2. **`FLUZER_TEMPLATE_ZIP_URL`** 非空 → 强制使用该 URL 的 `RemoteBrickLoader`（测试 / 调试）。
-3. 否则走**远程 registry**：从 `templateRegistryUrl` 拉取 `template_registry.json`，在 `minCliVersion <= cliVersion` 的记录里选 `version` 最大者的 zip URL；拉取时直连 URL 与全部镜像前缀**同时并发竞速**，首个成功者胜出、其余取消（超时：文本 30s / 文件 180s），不存在「先等直连超时再回退镜像」。
+3. 否则走**远程 registry**：从 `templateRegistryUrl` 拉取 `template_registry.json`，`create` 直接取 `version` 最大者（始终使用最新模板，不再按 `minCliVersion` 过滤）的 zip URL；`new` 则按项目 `version` 精确匹配。`create`/`new` 拉取时直连 URL 与全部镜像前缀**同时并发竞速**，首个成功者胜出、其余取消（超时：文本 30s / 文件 180s），不存在「先等直连超时再回退镜像」。
 
 ```bash
 # 本地调试：直接读本地 bricks 目录
@@ -241,26 +238,26 @@ fluzer create demo
 
 `RemoteBrickLoader` 下载 zip 后缓存到临时目录：能用 registry 版本号时按 `template_<版本>` 命名缓存目录，环境变量覆盖 / 回退时退化为按 URL 哈希命名；不同版本互不覆盖，且解压时做了路径校验（防 Zip Slip）。
 
-> **发布前必做**：把 `template_config.dart` 里的 `templateRegistryUrl`、`defaultTemplateZipUrl` 占位符（`https://github.com/<owner>/<repo>/...`）替换为真实地址，并把 `cliVersion` 与 `pubspec.yaml` 对齐。registry 采用「兼容性桶」结构，详见[《CLI 版本管理》](../versioning-cli.md)。
+> **发布前必做**：把 `template_config.dart` 里的 `templateRegistryUrl`、`defaultTemplateZipUrl` 占位符（`https://github.com/<owner>/<repo>/...`）替换为真实地址，并把 `cliVersion` 与 `pubspec.yaml` 对齐。registry 为 `templates` 版本列表（`version` + `url`），`create` 取最大 `version`、`new` 按精确 `version` 匹配，详见[《CLI 版本管理》](../versioning-cli.md)。
 
 ---
 
-## 9. 配置文件 `flutter_zero_config.yaml`
+## 9. 配置文件 `fluzer.yaml`（兼容 `flutter_zero_config.yaml`）
 
-`new` 命令依赖模板项目根目录的 `flutter_zero_config.yaml`。`ProjectConfig.load()` 会向上查找该文件并校验项目结构。
+`new` / `gen-l10n` 命令依赖模板项目根目录的 `fluzer.yaml`（v2 配置名；旧项目使用的 `flutter_zero_config.yaml` 仍可识别）。`ProjectConfig.load()` 会向上查找任一文件名并校验。
 
 ```yaml
-version: 1.0.0            # 模板版本，须 >= 最低支持版本 (minimumSupportedVersion)
+version: 1.0.0            # 模板版本（项目「出生」时使用的模板版本）
 template_name: flutter_zero
-minCliVersion: 1.0.0     # 版本门禁门槛：create/new/gen-l10n 以此为据；字段缺失时默认 0.0.0
 ```
 
 校验项：
 
-- `version` 为合法字符串且 `>= minimumSupportedVersion`（模板侧最低支持版本）。
+- `version` 为合法非空字符串且 `>= 1.0.0`（CLI 接受的最老模板版本下限）。
 - `template_name` 必须恰好为 `flutter_zero`。
-- `minCliVersion` 为合法版本字符串，表示可运行该模板的**最低 CLI 版本**；缺失时按 `0.0.0` 处理（即不限制 CLI 版本）。
-- 根目录存在 `pubspec.yaml`（读取 `name` 作为 `package_name`）、存在 `lib/`、`lib/core/di/injection_base.dart`。
+- 根目录存在 `pubspec.yaml`（读取 `name` 作为 `package_name`）。
+
+> ⚠️ `minCliVersion` 字段已**移除**：CLI 不再依据配置里的 `minCliVersion` 做版本门禁，模板与 CLI 的兼容由命令的「版本适配器」按 `version` 范围决定（见 [版本约束规则](../versioning-rules.md)）。`lib/`、`lib/core/di/injection_base.dart` 等内部结构也不再在此校验——CLI 力求适配所有模板版本，结构差异交给各版本适配器处理。
 
 任一项不满足都会抛出 `CliException` 并终止，提示你在正确的模板项目根目录下执行。
 
@@ -276,11 +273,32 @@ fluzer/
 │   └── src/
 │       ├── fluzer.dart                 # CLI 根控制器（CommandRunner 装配 + 根异常兜底 + UsageException 打印帮助）
 │       ├── commands/
-│       │   ├── create_command.dart     # create 命令（6 步流程 + 注入执行器）
-│       │   ├── new_command.dart        # new 命令（版本门禁 + 渲染 + 注册 DI）
-│       │   ├── gen_l10n_command.dart   # gen-l10n 命令（编排层：校验→生成→接线）
-│       │   ├── cache_command.dart      # cache 命令（list / clean 缓存）
-│       │   └── version_command.dart    # version 命令（可注入更新检查）
+│       │   ├── base_command.dart        # 命令基类（收参 + buildContext + execute + 注入点）
+│       │   ├── command_context.dart     # 命令上下文基类（携带版本信息）
+│       │   ├── command_adapter.dart     # 版本适配器接口（spec / canHandle / run）
+│       │   ├── adapter_command.dart     # 版本感知命令基类（读版本→选适配器→委托执行）
+│       │   ├── new/                     # new 命令
+│       │   │   ├── new_command.dart     # 入口（AdapterCommand，选 NewV1V2Adapter）
+│       │   │   ├── new_context.dart     # 上下文
+│       │   │   └── adapters/
+│       │   │       ├── base_new_adapter.dart
+│       │   │       └── new_v1v2_adapter.dart   # 1.0.0+ 适配器（按 version 钉死下载）
+│       │   ├── gen_l10n/                # gen-l10n 命令
+│       │   │   ├── gen_l10n_command.dart
+│       │   │   ├── gen_l10n_context.dart
+│       │   │   └── adapters/
+│       │   │       ├── base_gen_l10n_adapter.dart
+│       │   │       └── gen_l10n_v1v2_adapter.dart  # 1.0.0+ 通用适配器
+│       │   ├── create/                  # create 命令
+│       │   │   ├── create_command.dart  # 6 步流程 + 注入执行器
+│       │   │   └── create_context.dart
+│       │   ├── cache/                   # cache 命令
+│       │   │   ├── cache_command.dart
+│       │   │   └── cache_context.dart
+│       │   └── version/                 # version 命令
+│       │       ├── version_command.dart
+│       │       ├── version_context.dart
+│       │       └── version_spec.dart    # RangeSpec / AnySpec 版本区间
 │       ├── gen_l10n/
 │       │   ├── l10n_config.dart         # l10n.yaml 解析（arb-dir/output-dir/output-class）
 │       │   ├── l10n_parser.dart         # AppLocalizations 解析（类体括号扫描 + L10nParam 类型）
@@ -300,6 +318,7 @@ fluzer/
 │       │   ├── brick_renderer.dart      # Mason 渲染封装（BrickRenderer.generate）
 │       │   ├── feature_generator.dart   # 功能模块生成器（渲染 + 调 FeatureRegistration）
 │       │   ├── template_source.dart     # 模板来源解析：TemplateSourceResolver
+│       │   ├── template_version_reader.dart # 项目模板 version 读取（TemplateVersionReader）
 │       │   ├── template_config.dart     # 集中配置（实际位于 lib/src/config/）：registry/zip URL、镜像前缀、缓存目录名
 │       │   └── semantic_version.dart    # SemVer 解析与比较（实际位于 lib/src/util/）
 │       ├── http/
@@ -317,8 +336,8 @@ fluzer/
 │       │   ├── string_case.dart         # 命名转换工具
 │       │   └── regular_utils.dart        # 通用工具（如从 URL 提取版本号）
 │       └── version/
-│           ├── version_check.dart       # pub.dev 更新检查（可用 24h / 不可用 10min 缓存）
-│           └── version_check_mixin.dart # ensureUpdateNotified：启动非阻断版本提示
+│           ├── version_check.dart        # pub.dev 更新检查（可用 24h / 不可用 10min 缓存）
+│           └── version_update_notifier.dart  # VersionUpdateNotifier：启动非阻断版本提示（new/gen-l10n/create 显式 opt-in）
 ├── test/
 │   ├── fluzer_test.dart                 # 命令层（create/new/version/cache）+ 版本检查 + brick 渲染
 │   ├── brick_test.dart                  # brick 渲染冒烟测试
@@ -326,7 +345,7 @@ fluzer/
 │   ├── toast_handle_patcher_test.dart   # 自动接线三态 / 幂等 / 误触防护测试
 │   ├── template_source_test.dart        # 模板来源解析（注册表 / 精确钉死 / 回退）
 │   ├── version_check_test.dart          # 更新检查缓存与降级
-│   ├── version_check_mixin_test.dart    # 启动版本提示行为
+│   ├── version_update_notifier_test.dart # 启动版本提示行为（VersionUpdateNotifier）
 │   ├── http_client_test.dart            # HTTP 下载单测
 │   ├── race_http_client_test.dart       # 并发竞速下载单测
 │   ├── i18n_test.dart                   # 界面文案加载与回退
@@ -369,8 +388,8 @@ fluzer/
 
 命令与版本检查均通过 typedef 注入外部实现，便于单测：
 
-- `CreateCommand`：`CreateFlutterCreateRunner` / `CreateFlutterPubGetRunner` / `CreateFlutterGenL10nRunner` / `BrickLoader` / `ProcessRunner` / `VersionCheckService` / `Translations`。
-- `NewCommand`：`BuildRunnerRunner` 与 `BrickLoader`。
+- `CreateCommand`：`ProcessRunner`（统一执行 flutter/dart 子进程）/ `BrickLoader` / `VersionCheckService` / `Translations`。
+- `NewCommand`：`ProcessRunner` 与 `BrickLoader`。
 - `VersionCommand`：`VersionCheckService`（`peekCachedUpdate()` / `checkForUpdate()`，查询 pub.dev）。
 
 ### 运行测试
@@ -386,7 +405,7 @@ dart test      # 含命令层（create/new/version）与网络降级路径
 
 ## 13. 常见排查
 
-- **`new` 报「未找到 flutter_zero_config.yaml」**：请 `cd` 到模板项目根目录（含该文件）再执行。
+- **`new` 报「未找到 fluzer.yaml（或 flutter_zero_config.yaml）」**：请 `cd` 到模板项目根目录（含该文件）再执行。
 - **`create` 报「目录已存在」**：换一个项目名；已存在的目录不会被删除。
 - **`version` 一直提示「无法检查更新」**：包尚未发布到 pub.dev，或网络受限——属正常降级，不影响其它命令。
 - **模板拉取慢 / 想固定版本**：用 `FLUZER_TEMPLATE_ZIP_URL` 指定具体 Release 的 zip 链接。

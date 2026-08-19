@@ -25,7 +25,7 @@ final class ToastEffect extends UIEffect {
   const ToastEffect({this.message, this.l10nCode, this.code, this.extra});
   final String? message;   // fixed/server text, displayed with priority
   final String? l10nCode;  // developer-defined localization key, translated by the business handle
-  final int? code;         // internal error code (HTTP status code or AppErrorCodes sentinel)
+  final int? code;         // internal network error code (HTTP status or custom sentinel)
   final Object? extra;
 }
 
@@ -101,7 +101,7 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 | Handle | Claims type | Behavior |
 |--------|-------------|----------|
-| `defaultToastHandle` | `ToastEffect` | Priority: **`message` → `code` → `l10nCode`**. `message` displayed directly; `code` mapped to fallback text via `AppErrorCodes`; `l10nCode` **is not handled by the default handle** and must be translated by the business handle (unhandled → debug warning, silent in release) |
+| `defaultToastHandle` | `ToastEffect` | Priority: **`message` → `l10nCode` → `code` → `unknownError`**. `message` displayed directly; `l10nCode` **is not rendered by the default handle** (only a debug warning, silent in release) and must be translated by the business handle; `code` mapped to fallback text via `l.unknownError(code)`; if all are absent `l.unknownError('Unknown')` |
 | `defaultDialogHandle` | `DialogEffect` | Renders a minimal generic dialog for unclaimed dialogs, avoiding side-effects being silently dropped |
 | `defaultLoadingHandle` | `LoadingEffect` | Delegates to the injected `LoadingService`; `show=true` calls `svc.show(status:)`, otherwise `svc.dismiss()` |
 
@@ -109,7 +109,7 @@ The business layer only needs `emitEffect(const LoadingEffect(show: true))` to c
 
 ### `defaultToastHandle`'s code mapping
 
-`code` is mapped to localized text via `AppErrorCodes` (negative internal codes + common HTTP 4xx/5xx); unlisted codes fall back to `unknownErrorCode`. See [Error Handling & Result](../architecture/error-handling.md).
+`code` is mapped to localized fallback text via `l.unknownError(code)` (e.g. "Request failed: 404"); the `AppErrorCodes` system is no longer used. See [Error Handling & Result](../architecture/error-handling.md).
 
 ---
 

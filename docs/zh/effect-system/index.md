@@ -25,7 +25,7 @@ final class ToastEffect extends UIEffect {
   const ToastEffect({this.message, this.l10nCode, this.code, this.extra});
   final String? message;   // 固定/服务端文本，优先显示
   final String? l10nCode;  // 开发者自定义本地化键，由业务 handle 翻译
-  final int? code;         // 内部错误码（HTTP 状态码或 AppErrorCodes 哨兵码）
+  final int? code;         // 网络请求内部错误码（HTTP 状态码或自定义哨兵码）
   final Object? extra;
 }
 
@@ -100,7 +100,7 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 | Handle | 认领类型 | 行为 |
 |--------|----------|------|
-| `defaultToastHandle` | `ToastEffect` | 优先级：**`message` → `code` → `l10nCode`**。`message` 直接显示；`code` 按 `AppErrorCodes` 映射兜底文案；`l10nCode` **不被默认 handle 处理**，必须由业务 handle 翻译（未处理则 debug 告警、release 静默） |
+| `defaultToastHandle` | `ToastEffect` | 优先级：**`message` → `l10nCode` → `code` → `unknownError`**。`message` 直接展示；`l10nCode` **不被默认 handle 渲染**（仅 debug 告警、release 静默），须由业务 handle 翻译；`code` 经 `l.unknownError(code)` 兜底文案；三者皆缺则 `l.unknownError('Unknown')` |
 | `defaultDialogHandle` | `DialogEffect` | 为未被业务认领的弹窗渲染最小通用对话框，避免副作用被静默丢弃 |
 | `defaultLoadingHandle` | `LoadingEffect` | 委托注入的 `LoadingService`；`show=true` 调 `svc.show(status:)`，否则 `svc.dismiss()` |
 
@@ -108,7 +108,7 @@ class EffectListener<B extends BlocBase<S>, S> extends StatelessWidget {
 
 ### `defaultToastHandle` 的 code 映射
 
-`code` 按 `AppErrorCodes`（负数内部码 + 常见 HTTP 4xx/5xx）映射为本地化文案，未列出的码走 `unknownErrorCode` 兜底。详见 [错误处理与 Result](../architecture/error-handling.md)。
+`code` 经 `l.unknownError(code)` 映射为本地化兜底文案（如"请求出错：404"），不再依赖 `AppErrorCodes` 体系。详见 [错误处理与 Result](../architecture/error-handling.md)。
 
 ---
 

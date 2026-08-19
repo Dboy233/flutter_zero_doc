@@ -65,39 +65,40 @@ abstract class LoginState with _$LoginState {
 
 ## 2. Write the Repository (extend BaseRepository)
 
-The repository handles the network and parsing, and **actively throws `BusinessException` on a business-status-code failure**. `BaseRepository` already provides `parseList` / `parseSingle` / `parseResponse` / `parseBusinessResponse`, so you don't write JSON parsing by hand.
+The repository handles the network and parsing. The framework **does not parse the response for you** — everything about "sending the request / parsing / judging business errors / throwing" is decided in `LoginRepository`'s public methods (see [Error Handling & Result](../architecture/error-handling.md)). `BaseRepository` only holds `Dio` and provides no `parse*` helper.
 
 ```dart
 // login_repository.dart
 class LoginRepository extends BaseRepository {
-  const LoginRepository({required super.client});
+  const LoginRepository({required super.dio});
 
   Future<String> login({
     required String username,
     required String password,
     CancelToken? cancelToken,
   }) async {
-    final response = await client.post('/login', data: {
+    final response = await dio.post('/login', data: {
       'username': username,
       'password': password,
     });
 
     // Suppose the backend returns {code:0, message:'ok', data:'nickname'}
-    return parseBusinessResponse<String, LoginResp>(
-      response,
-      parseBody: LoginResp.fromJson,
-      isSuccess: (body) => body.code == 0,
-      extractCode: (body) => body.code,
-      extractMessage: (body) => body.message,
-      extractData: (body) => body.data,
-    );
+    // The framework does not parse for you: response structure, business-code
+    // checks, and how to throw are all your decision.
+    final body = response.data as Map<String, dynamic>;
+    if (body['code'] != 0) {
+      // business code != 0 → throw Exception; text from backend message,
+      // handled by the Bloc's failure branch
+      throw Exception(body['message']?.toString() ?? 'login failed');
+    }
+    return body['data'] as String; // nickname
   }
 }
 ```
 
-- Non-2xx HTTP → `ServerException` is thrown automatically and translated by `ErrorHandler` via the HTTP code.
-- HTTP 200 but `code != 0` → `BusinessException` is thrown, with text from the backend `message`.
-- Pure client-side validation (e.g. empty username) can also directly `throw const BusinessException('Username or password cannot be empty')`.
+- Non-2xx HTTP → Dio throws `DioException` directly; for a unified prompt, use `ex.toToastEffect()` in the Bloc's `failure` branch (the framework does no auto-translation).
+- HTTP 200 but a non-zero business code → throw `Exception` (text from the backend `message`), handled by the Bloc's `failure` branch.
+- Pure client-side validation (e.g. empty username) can also directly `throw Exception('Username or password cannot be empty')`.
 
 ---
 
@@ -132,7 +133,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
     emitEffect(const LoadingEffect(show: true));
 
     // 2) Unified error handling: three explicit terminal states (success/failure/cancel)
-    final result = await runToResult(
+    final result = await runCatching(
       () => repository.login(
         username: state.username,
         password: state.password,
@@ -160,7 +161,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
 
 Key points:
 
-- **`runToResult`** replaces hand-written `try/catch`: network exceptions / cancellations are normalized, and you only handle three states.
+- **`runCatching`** replaces hand-written `try/catch`: network exceptions / cancellations are wrapped into the three-state `Result`; you only handle the three states, and `Failure` carries the raw `Exception` (no normalization).
 - **`LoadingEffect`** does not go through the business handle; the framework default handle calls `LoadingService` to show/hide the global Loading.
 - **`ToastEffect(l10nCode: ...)`** uses a custom localization key, translated by the business handle (see step 4). To show the server text directly, use `ToastEffect(message: ex.message)` or `ex.toToastEffect()`.
 
@@ -242,7 +243,7 @@ Data flow after completion:
 ```
 Tap login → bloc.submit() (awaitable)
   → emit(isSubmitting:true) + emitEffect(LoadingEffect(show:true))
-  → runToResult(repository.login)
+  → runCatching(repository.login)
   → emitEffect(LoadingEffect(show:false))
   → result.when: success → emit(state)+Toast(l10nCode:loginSuccess)
                 failure → emit(state)+Toast(l10nCode:loginFailed)
@@ -257,8 +258,8 @@ Every feature module follows the same recipe:
 
 1. `fluzer new <name>` generates the skeleton.
 2. `Event` / `State` use freezed; state is immutable.
-3. `Repository extends BaseRepository`, parses with `parseBusinessResponse` etc. for business-status-code handling, and throws `BusinessException` on failure.
-4. The Bloc `with` the four Mixins: `onAwait` for awaitable actions, `runToResult` for unified error handling, `emitEffect(LoadingEffect/ToastEffect)` for one-shot side-effects.
+3. `Repository extends BaseRepository`, sends requests directly via `dio`, parses the response manually, and throws `Exception` as needed — the framework makes no parsing assumption.
+4. The Bloc `with` the four Mixins: `onAwait` for awaitable actions, `runCatching` for unified error handling, `emitEffect(LoadingEffect/ToastEffect)` for one-shot side-effects.
 5. `effects/<name>_effect_handle.dart` only translates custom `l10nCode`; everything else falls through to the default handle.
 6. The page only renders `State` and only emits intents.
 

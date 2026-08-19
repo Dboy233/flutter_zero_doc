@@ -1,10 +1,11 @@
 # 版本约束规则 / Version Constraint Rules
 
 本文统一阐述 `flutter_zero` 体系中 **项目（Project）/ CLI（fluzer）/ 模板（Template）**
-三者之间的版本约束关系，以及 `create` / `new` / `gen-l10n` 三条命令各自的版本门禁逻辑。
+三者之间的版本关系，以及 `create` / `new` / `gen-l10n` 三条命令各自如何决定「用哪个模板、能否执行」。
 
 > 背景：模板与 CLI 解耦、独立发版（见 [发布流程](release.md)），项目在创建时记录"出生模板版本"。
-> 三者版本可能不一致，必须靠版本约束保证命令安全执行、避免用不兼容的 CLI 生成坏代码。
+> 三者版本可能不一致，但 2.0.0 起已**移除 `minCliVersion` 版本门禁**——CLI 力求适配所有模板版本，
+> 仅当项目 `version` 超出命令「版本适配器」的支持范围时才报错。
 
 ---
 
@@ -13,82 +14,48 @@
 | 实体 | 来源 | 含义 |
 |------|------|------|
 | **CLI 版本 `cliVersion`** | `flutter_zero_cli` 的 `pubspec.yaml` / `template_config.dart` 常量 | 当前运行的 fluzer 二进制版本，如 `1.2.0` |
-| **模板版本** | 模板注册表 `template_registry.json` 每条目的 `version` + `minCliVersion` | 一个发布的模板快照，及"能使用它的最低 CLI 版本" |
-| **项目模板版本** | 项目根 `flutter_zero_config.yaml` 的 `version` + `minCliVersion` | 该项目是由哪个模板版本创建的（如 `1.0.1`） |
+| **模板版本** | 模板注册表 `template_registry.json` 每条目的 `version` | 一个发布的模板快照，`create` 据此选最新、`new` 据此精确钉死 |
+| **项目模板版本** | 项目根 `fluzer.yaml`（兼容 `flutter_zero_config.yaml`）的 `version` | 该项目是由哪个模板版本创建的（如 `1.0.1`） |
 
-三者各自发版、互不打扰——这正是需要版本约束的根因。
+三者各自发版、互不打扰。
 
 下文统一称：
 
-- **「项目模板版本」** = 项目 `flutter_zero_config.yaml` 里的 `version` 字段值（该项目"出生"时用的模板版本）。
-- **「模板注册表」** = 仓库发布的 `template_registry.json`，列出所有可用模板版本及其 `minCliVersion`。
-- **`minCliVersion`** = 某个模板版本要求的最低 CLI 版本；它同时写在 `template_registry.json` 对应条目和项目 `flutter_zero_config.yaml` 中。
+- **「项目模板版本」** = 项目 `fluzer.yaml` 里的 `version` 字段值（该项目"出生"时用的模板版本）。
+- **「模板注册表」** = 仓库发布的 `template_registry.json`（`templates` 列表，每条含 `version` + `url`）。
+- **「版本适配器」** = 命令内部按项目 `version` 选择执行逻辑的对象（`new` → `NewV1V2Adapter`，`gen-l10n` → `GenL10nV1V2Adapter`）。
+
+> ⚠️ `minCliVersion` 字段已**移除**：`template_registry.json` 中残留的 `minCliVersion` 仅为历史元数据，CLI 不再读取；
+> 配置文件 `fluzer.yaml` 中也不再含 `minCliVersion`。旧文档/旧项目里的 `minCliVersion` 门禁逻辑均已失效。
 
 ---
 
-## 两个版本"真相源"
+## 命令如何决定「用哪个模板、能否执行」
 
-| 真相源 | 影响的命令 | 说明 |
-|--------|------------|------|
-| 模板注册表 `template_registry.json` | `create` | 创建新项目时无项目、无 config，只能由 CLI 按模板注册表选模板 |
-| 项目 `flutter_zero_config.yaml` | `new` / `gen-l10n` | 项目已存在，必须尊重其"出生时的模板版本"，保证可复现 |
+### create（无项目，CLI 驱动，始终用最新模板）
 
----
+`create` 从零创建项目，不涉及任何 `fluzer.yaml`。模板选择完全由 CLI 决定：
 
-## 统一门禁公式（作用于已有项目的命令）
+- 在模板注册表中取 `version` **最大**者下载（始终最新模板）。
+- 注册表拉取失败 / 无条目 → **静默回退**内置 `defaultTemplateZipUrl`，不报错。
 
-`new` / `gen-l10n` 都对已有项目执行，运行前统一做一道兼容门禁：
+> `create` 永不拒绝——总能拉到一个可用模板。
 
-```text
-项目 flutter_zero_config.yaml 中的 minCliVersion <= 当前运行的 CLI 版本 cliVersion   →  通过，执行命令
-否则                                                                    →  报错，拒绝执行
-```
+### new / gen-l10n（已有项目，按版本适配器执行）
 
-其中 `minCliVersion` 直接取自项目 `flutter_zero_config.yaml`（**离线读取，不查模板注册表**）。
+`new` / `gen-l10n` 作用于已有项目，由 `AdapterCommand` 统一「读项目 `version` → 沿适配器链选认领者 → 委托执行」：
 
-唯一失败原因：
+1. `ProjectConfig.load()` 校验结构（`version` 非空且 `>= 1.0.0` 下限 + `template_name`）。
+2. 沿本命令的适配器链（`adapters`）逐个 `canHandle(version)`，取第一个认领者。
+3. 命中 → 委托该适配器执行整条命令。
+4. 全不命中（当前 CLI 不支持该模板版本）→ 按 `version >= maxSupportedVersion` 分支打印：
+   - **太新**：提示「请升级 fluzer」；
+   - **太旧**：提示「请升级模板/CLI」；
+   并返回退出码 1。
 
-- `config.minCliVersion > 当前 CLI 版本` → 报"当前 CLI 版本过低，项目模板版本需要 CLI >= minCliVersion，请升级 fluzer"。
+环境变量 `FLUZER_BRICKS_DIR` / `FLUZER_TEMPLATE_ZIP_URL` 仅覆盖下载来源，不影响适配器选择。
 
-> 门禁依据的 `minCliVersion` 直接取自**项目 `flutter_zero_config.yaml`**（离线读取），
-> 不依赖联网拉取模板注册表，因此门禁稳定，且 `gen-l10n` 可保持离线执行。
-> 老项目若缺失该字段，默认按 `0.0.0` 处理（恒兼容任意 CLI）。
-> 原有的 `version >= 1.0.0` 下限校验仍保留为第一道防线。
-
----
-
-## 各命令的版本约束
-
-### create（无项目，CLI 驱动）
-
-`create` 从零创建项目，不涉及任何 `flutter_zero_config.yaml`。模板选择完全由 CLI 版本决定：
-
-- 在模板注册表中取所有 `minCliVersion <= cliVersion` 的条目，选其中 **`version` 最大** 者下载。
-- 无兼容条目 / 注册表拉取失败 → **静默回退**内置 `defaultTemplateZipUrl`（固定 `1.0.0`），不报错。
-
-> 设计差异：`create` 是"CLI 挑可用模板且永不拒绝"；`new`/`gen-l10n` 是"按项目模板版本钉死、CLI 撑不住就报错"——
-> 两者方向相反、容错策略不同。
-
-### new（已有项目，按项目模板版本钉死下载）
-
-流程：
-
-1. `ProjectConfig.load()` 校验结构（含 `version >= 1.0.0` 下限）。
-2. **兼容门禁**：`config.minCliVersion <= cliVersion` 不成立则报错。
-3. **按「项目模板版本」钉死下载**：从模板注册表取该精确版本条目的 `url` 构造 `RemoteBrickLoader`，用其 `feature` brick 生成模块。
-
-环境变量 `FLUZER_BRICKS_DIR` / `FLUZER_TEMPLATE_ZIP_URL` 仅覆盖下载来源，**门禁仍执行**。
-
-### gen-l10n（已有项目，仅门禁，不下载）
-
-与 `new` 走**同一道门禁**：读 `config.minCliVersion` → 判定 `minCliVersion <= cliVersion`（**离线，不查模板注册表**）。
-
-**但 `gen-l10n` 不下载任何模板**——它只在本地解析 `l10n.yaml` / `AppLocalizations` 并生成代码。
-门禁通过即本地执行，不通过则报错。
-
-### --skip-version-check
-
-调试时可用 `--skip-version-check` 跳过门禁（环境变量覆盖下载源仍建议配合真实版本使用）。
+> `new` 的适配器会按项目 `version` **精确钉死**下载同名模板（`selectExact`）；`gen-l10n` 不下载任何模板，只在本地解析 `l10n.yaml` / `AppLocalizations` 并生成代码。
 
 ---
 
@@ -97,41 +64,38 @@
 ```mermaid
 flowchart TD
     A[命令开始] --> B{作用于已有项目?}
-    B -- create: 无项目 --> C[按 cliVersion 在模板注册表中<br/>选最大兼容版本下载]
-    C --> C1[无兼容 / 拉取失败 → 回退 1.0.0]
-    B -- new / gen-l10n --> D[读 config.minCliVersion<br/>即项目模板版本]
-    D --> E{skip-version-check?}
-    E -- 是 --> G
-    E -- 否 --> F{minCliVersion <= cliVersion?}
-    F -- 否 --> X[报错: CLI 过低 / 未知模板版本]
-    F -- 是 --> G
-    G{命令类型}
-    G -- new --> H[按项目模板版本钉死下载 feature brick]
+    B -- create: 无项目 --> C[取 registry 中 version 最大者下载]
+    C --> C1[失败/无条目 → 回退 defaultTemplateZipUrl]
+    B -- new / gen-l10n --> D[读项目 fluzer.yaml 的 version]
+    D --> E{适配器 canHandle version?}
+    E -- 否 --> X[报错: 版本太新请升级 CLI / 太旧请升级模板]
+    E -- 是 --> G{命令类型}
+    G -- new --> H[按 version 精确钉死下载 feature brick]
     G -- gen-l10n --> I[本地生成 l10n 代码]
 ```
 
 ---
 
-## 边界场景验证
+## 边界场景
 
-| 项目模板版本（config.version） | 最低 CLI 版本 | 当前 CLI | 结果 |
-|-------------------------------|--------------|----------|------|
-| `1.0.0` | `1.0.0` | `1.1.0` | 通过；`new` 下载 `1.0.0` 模板 |
-| `1.0.1` | `1.1.0` | `1.1.0` | 通过；`new` 下载 `1.0.1` 模板 |
-| `1.0.1` | `1.1.0` | `1.0.0` | 报错"CLI 过低" |
-| `9.9.9`（注册表无此条目） | — | 任意 | `new`：报错"未知模板版本"；`gen-l10n`：通过（不下载，门禁只看 `minCliVersion`，缺失按 `0.0.0`） |
-| 老项目（无 `minCliVersion` → `0.0.0`） | `0.0.0` | `1.1.0` | 通过；门禁 `0.0.0 <= 1.1.0` 恒兼容 |
+| 项目模板版本（config.version） | 当前 CLI 适配器支持范围 | 结果 |
+|-------------------------------|--------------------------|------|
+| `1.0.1` | `[1.0.0, ∞)`（`NewV1V2Adapter` / `GenL10nV1V2Adapter`） | 通过；`new` 精确下载 `1.0.1` 模板 |
+| `2.0.0` | `[1.0.0, ∞)` | 通过；`new` 精确下载 `2.0.0` 模板 |
+| `0.9.0`（低于下限 `1.0.0`） | 不支持 | `new`/`gen-l10n`：报错「版本太旧，请升级模板/CLI」 |
+| `9.9.9`（远超已知版本） | 当前适配器无上界，仍认领 | 通过（若未来适配器设置上界，则提示「请升级 fluzer」） |
+| 老项目（只有旧名 `flutter_zero_config.yaml`） | 仍识别 | 通过；配置名向下兼容 |
 
 ---
 
-## 维护约束（两处必须同步）
+## 维护约束（适配器与模板版本同步）
 
-项目 `flutter_zero_config.yaml` 的 `minCliVersion` 与模板注册表 `template_registry.json` 对应版本的 `minCliVersion`
-**必须同源同值**：
+当模板发版引入**行为差异**时（例如 `new` 的 DI 注入锚点、目录结构随模板版本变化），
+需要为其增加/调整对应的**版本适配器**，而非依赖 `minCliVersion` 门禁：
 
-- 模板发版时，brick 自带正确的 `minCliVersion` 写入新项目；
-- 模板注册表同一版本的 `minCliVersion` 与之保持一致；
-- 二者不一致会导致门禁误判。发布流程见 [发布流程](release.md)。
+- 若新模板版本对 `new`/`gen-l10n` 的执行流程有破坏性差异，新增一个覆盖该版本的适配器（如 `NewV2Adapter`），并注册到命令的 `adapters` 链。
+- 命令的 `maxSupportedVersion` 由各适配器 `RangeSpec.upper` 推导，作为「能力上界」单一事实源。
+- `template_registry.json` 只需维护 `version` + `url`（`create` 取最大、`new` 精确匹配），不再需要 `minCliVersion` 字段。
 
 ---
 

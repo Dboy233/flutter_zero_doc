@@ -2,7 +2,7 @@
 
 本文档描述 **`fluzer create` 生成后的项目**的目录结构，以及 MVI 在该项目中如何设计与内部工作。所有描述均基于当前代码。
 
-> 网络请求封装（`DioClient`、拦截器）属于数据层细节，本文不展开；业务侧只需关心 `Repository` 暴露的方法，以及出错时抛出的 `AppException`（详见 [错误处理与 Result](error-handling.md)）。
+> 网络请求封装（`Dio`、拦截器）属于数据层细节，本文不展开；业务侧只需关心 `Repository` 暴露的方法，以及出错时抛出的 `Exception`（详见 [错误处理与 Result](error-handling.md)）。
 
 ---
 
@@ -38,13 +38,11 @@ lib/
     │   ├── models/              # 共享数据模型（DTO，被 2+ feature 复用时上移至此）
     │   ├── repositories/        # 共享仓库（继承 BaseRepository）
     │   └── shares_repositories.dart  # 共享仓库 DI 注册中心
-    ├── storage/                 # 存储与仓库基类（BaseRepository 在此）
+    ├── network/                 # 网络与仓库基类（BaseRepository 在此）+ Dio / 拦截器（本文不展开）
     ├── di/                      # 依赖注入（get_it 三文件，见 dependency-injection.md）
     ├── effect/                  # Effect 系统（见 effect-system.md）
-    ├── error/                   # AppException / ErrorHandler / AppErrorCodes
     ├── result/                  # Result<T>（Success / Failure / Cancel）
     ├── localization/            # gen-l10n 封装（context.l 扩展）
-    ├── network/                 # DioClient / 拦截器（本文不展开）
     ├── notifiers/               # Notifiers 系统（见 effect-system.md）
     ├── theme/                   # AppTheme / ThemeProvider
     └── utils/                   # log 等工具
@@ -166,7 +164,7 @@ sequenceDiagram
     Note over Bloc: _onFetch(HomeFetch)
     Bloc-->>View: emit(state.copyWith(isLoading: true)) ① 状态回流到 View
     Bloc->>Repo: await fetchPosts(token: token('posts'))
-    Repo-->>Bloc: 数据 / 异常（AppException）
+    Repo-->>Bloc: 数据 / 异常（Exception）
     Bloc-->>View: emit(state.copyWith(items: ...)) ② 状态回流到 View
     Bloc->>Listener: emitEffect(ToastEffect(l10nCode: 'homeLoadFailed'))
     Note over Listener: 订阅 BlocEffectMixin.effectStream
@@ -179,7 +177,7 @@ sequenceDiagram
 
 1. **状态是唯一渲染来源**：`BlocBuilder` / `context.watch` 只在 `HomeState` 变化时重建 View。
 2. **Effect 不污染 State**：`emitEffect(...)` 走 `BlocEffectMixin.effectStream`（独立 broadcast Stream），由 `EffectListener` 订阅，不会写入 `HomeState`，因此不存在「单槽覆盖 / 重复投递」。
-3. **错误归一化**：请求失败时 `_onFetch` 通过 `runToResult` 得到 `Failure(ex)`，再 `emitEffect(ex.toToastEffect())`——异常被统一成 `AppException`，错误 UI 可走状态、提示走副作用（详见 [错误处理与 Result](error-handling.md)）。
+3. **错误处理**：请求失败时 `_onFetch` 通过 `runCatching` 得到 `Failure(ex)`（`ex` 即原始 `Exception`），再 `emitEffect(ex.toToastEffect())`——异常原样透传、不做归一化，错误 UI 可走状态、提示走副作用（详见 [错误处理与 Result](error-handling.md)）。
 
 ---
 
@@ -192,9 +190,9 @@ sequenceDiagram
 | `BlocAwaitMixin` | `add(Event)` 是 fire-and-forget，UI 无法直接 `await`（如 `RefreshIndicator.onRefresh`） | `Future<void> refresh() => runAwait(event: const XxxEvent.refresh(), key: 'refresh');`，或用 `onAwait` 自动收尾 |
 | `BlocCancelTokenMixin` | 按 key 管理 Dio `CancelToken`，页面销毁自动取消、连续调用去重 | `repository.fetchPosts(cancelToken: token('posts'))`；`on DioException cancel => return` 静默 |
 | `BlocEffectMixin` | 提供一次性副作用通道 | `emitEffect(const ToastEffect(l10nCode: 'homeLoadFailed'))` |
-| `BlocErrorHandlerMixin` | 统一把底层异常归一化为 `AppException`，并用 `Result<T>` 表达成功/失败/取消 | `final r = await runToResult(() => repository.fetch()); r.when(success: ..., failure: ..., cancel: ...)` |
+| `BlocErrorHandlerMixin` | 把异常包装为 `Result<T>`（成功/失败/取消），`Failure` 携带原始 `Exception` | `final r = await runCatching(() => repository.fetch()); r.when(success: ..., failure: ..., cancel: ...)` |
 
-`home` 模块同时用到四者：`refresh()` / `loadMore()` 经 `BlocAwaitMixin` 可等待；列表请求经 `BlocCancelTokenMixin` 的 `token('posts')` 取消；`_onFetch` 经 `BlocErrorHandlerMixin` 的 `runToResult` 处理错误；副作用经 `BlocEffectMixin` 发出。
+`home` 模块同时用到四者：`refresh()` / `loadMore()` 经 `BlocAwaitMixin` 可等待；列表请求经 `BlocCancelTokenMixin` 的 `token('posts')` 取消；`_onFetch` 经 `BlocErrorHandlerMixin` 的 `runCatching` 处理错误；副作用经 `BlocEffectMixin` 发出。
 
 ---
 
@@ -207,7 +205,7 @@ DI 由三个文件协作（`core/di/`，详见 [依赖注入](dependency-injecti
 - `injection.dart` —— 用户手写区（注册基础设施实现 / 第三方 SDK）。
 - `core/data/shares_repositories.dart` —— 跨模块共享仓库的 DI 注册中心（`SharesRepositories.register`）；在此登记各个共享仓库为 `lazySingleton`，由 `injection_base.dart` 的 `registerFeatureModules` 调用生效。
 
-**重要约定**：`DioClient`、`Repository`、`Service` 注册为 `lazySingleton`；**BLoC 不注册进 DI**，而是由 `BlocProvider` 在页面创建（避免长期持有导致泄漏）。这与 `home_page.dart` / 生成的 `<name>_page.dart` 中 `BlocProvider(create: (_) => XxxBloc(repository: getIt<XxxRepository>()))` 一致。
+**重要约定**：`Repository`、`Service` 注册为 `lazySingleton`；`Dio` 由框架基础设施统一注册；**BLoC 不注册进 DI**，而是由 `BlocProvider` 在页面创建（避免长期持有导致泄漏）。这与 `home_page.dart` / 生成的 `<name>_page.dart` 中 `BlocProvider(create: (_) => XxxBloc(repository: getIt<XxxRepository>()))` 一致。
 
 ---
 

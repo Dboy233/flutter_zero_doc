@@ -52,13 +52,13 @@ class LoginModule {
   LoginModule._();
   static void register(GetIt getIt) {
     getIt.registerLazySingleton<LoginRepository>(
-      () => LoginRepository(client: getIt<DioClient>()),
+      () => LoginRepository(dio: getIt<Dio>()),
     );
   }
 }
 ```
 
-> **Important convention**: `DioClient`, `Repository`, `Service` are registered as `lazySingleton`; **BLoCs are not in DI**, but created by `BlocProvider` on the page (to avoid memory leaks from long-lived holding).
+> **Important convention**: `Repository`, `Service` are registered as `lazySingleton`; `Dio` is registered once by the framework's infrastructure; **BLoCs are not in DI**, but created by `BlocProvider` on the page (to avoid memory leaks from long-lived holding).
 
 ---
 
@@ -70,7 +70,7 @@ When multiple features share a piece of data, promote the repository to `core/da
 abstract class SharesRepositories {
   static void register(GetIt getIt) {
     getIt.registerLazySingleton<UserRepository>(
-      () => UserRepository(client: getIt<DioClient>()),
+      () => UserRepository(dio: getIt<Dio>()),
     );
   }
 }

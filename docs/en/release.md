@@ -4,7 +4,7 @@
 > (`flutter_zero_app` / `flutter_zero_cli` / `flutter_zero_template`).
 >
 > **Core principle: the template and CLI are released decoupled.** The template can release independently and frequently; the CLI usually does not need to follow.
-> The two are connected through the compatibility-bucket mechanism in `template_registry.json`.
+> The two are connected through the version list in `template_registry.json` (`create` picks the largest `version`, `new` matches the exact `version`).
 
 ---
 
@@ -21,7 +21,7 @@
 
 - **PATCH (0.0.x)** = bug fix / minor content fix, no contract change → CLI does nothing
 - **MINOR (0.x.0)** = backward-compatible addition (optional variable with default, optional brick) → CLI does nothing
-- **MAJOR (x.0.0)** = breaking change (change brick variable contract / generated code structure / DI anchor) → must bump `minCliVersion`
+- **MAJOR (x.0.0)** = breaking change (change brick variable contract / generated code structure / DI anchor) → must add a version-specific adapter
 
 ---
 
@@ -115,9 +115,9 @@ Must be **0 issues + all green** before release.
    # yields the fixed link:
    # https://github.com/OWNER/REPO/releases/download/v1.0.1/bricks.zip
    ```
-4. **Update `template_registry.json`** (compatibility-bucket rules):
-   - **PATCH / MINOR** → only update the `version` + `url` of the current `minCliVersion` bucket entry (no new entry)
-   - **MAJOR** → add a new entry (new `minCliVersion`), keep the old entry
+4. **Update `template_registry.json`** (version list, only `version` + `url` needed):
+   - **PATCH / MINOR** → update the matching `version` entry's `url` (point to the new Release)
+   - **MAJOR** → add a new entry (new `version` + `url`), keep the old entry
 5. **Push to main** (ensure the raw URL stays stably reachable):
    ```bash
    git add template_registry.json && git commit -m "chore: update template registry to v1.0.1" && git push
@@ -130,13 +130,13 @@ Must be **0 issues + all green** before release.
 | Scenario | Does the CLI release? |
 |----------|------------------------|
 | Template PATCH / MINOR | **No** (registry already points to the new template) |
-| Template MAJOR (requires higher `minCliVersion`) | Release if the CLI injection logic needs to change; otherwise only the registry constraint takes effect |
+| Template MAJOR (behavioral difference needs a new adapter) | Release if the CLI side needs a new version adapter; otherwise just updating the registry is enough |
 | CLI itself has changes / bug fixes / new features | Release |
 
 ### C3. Release the CLI (only when C2 decides it's needed)
 
 1. Update the `cliVersion` constant in `lib/src/config/template_config.dart` (**must stay in sync with `pubspec.yaml`**).
-2. If the template is MAJOR, confirm `TemplateSourceResolver.resolve()`'s `minCliVersion` validation is compatible.
+2. If the template is MAJOR, confirm the version adapters of the relevant commands (`new`/`gen-l10n`) cover that template version.
 3. Re-run `dart analyze` + `dart test`.
 4. Publish:
    ```bash
@@ -158,7 +158,7 @@ Must be **0 issues + all green** before release.
 - [ ] Decide the bump type per [Template Versioning](versioning-template.md)
 - [ ] `bricks.zip` packaged, top level is `bricks/`
 - [ ] GitHub Release uses a **fixed version URL** (not `/latest`)
-- [ ] `template_registry.json` updated (PATCH/MINOR changes the bucket entry, MAJOR adds an entry)
+- [ ] `template_registry.json` updated (PATCH/MINOR changes the matching entry's `url`, MAJOR adds an entry)
 - [ ] `template_registry.json` pushed to main
 
 **Before releasing the CLI**
@@ -188,7 +188,7 @@ Location: `flutter_zero_cli/lib/src/config/template_config.dart`
 
 > ⚠️ **Never modify `minimumSupportedVersion`**: this constant is the "oldest template version the CLI accepts",
 > unrelated to the CLI's own version (`cliVersion`). Bumping it to the CLI version would wrongly reject valid
-> older templates such as `1.0.x` and break the gate. It must stay at `1.0.0`.
+> older templates such as `1.0.x` and break the lower-bound check. It must stay at `1.0.0`.
 
 ### 3.2 Command Quick Reference
 

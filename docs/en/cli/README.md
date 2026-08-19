@@ -42,9 +42,9 @@ fluzer version         # show version + check for updates
 
 | Command | Purpose | Common options |
 |---------|---------|----------------|
-| `fluzer new <feature_name>` | Add a feature module in the current template project and register DI | `--build-runner` / `--no-build-runner`, `--skip-version-check` |
+| `fluzer new <feature_name>` | Add a feature module in the current template project and register DI | — |
 | `fluzer create <project_name>` | Create a brand-new Flutter project from the template | `--org` |
-| `fluzer gen-l10n` | Generate the L10nCode access layer and auto-wire toast dispatch | `--skip-version-check` / `--skip-handle-patch` / `--force-handle-patch` |
+| `fluzer gen-l10n` | Generate the L10nCode access layer and auto-wire toast dispatch | `--skip-handle-patch` / `--force-handle-patch` |
 | `fluzer cache list` | List downloaded cached template versions | — |
 | `fluzer cache clean` | Clear all cached template versions | — |
 | `fluzer version` | Print the CLI version and check pub.dev for updates | — |
@@ -64,24 +64,21 @@ fluzer version         # show version + check for updates
 
 ## 3. `new` — Add a feature module
 
-Must be run in the **root directory of a Flutter Zero template project** (the one containing `flutter_zero_config.yaml`).
+Must be run in the **root directory of a Flutter Zero template project** (the one containing `fluzer.yaml`; legacy projects using `flutter_zero_config.yaml` are still recognized).
 
 Execution flow:
 
-1. Load `flutter_zero_config.yaml` and run the **version gate** (passes only when `config.minCliVersion <= cliVersion`).
-2. Resolve the template source **pinned exactly** to `config.version`.
-3. Validate the feature name (must be `snake_case`, starting with a lowercase letter, e.g. `user_profile`).
-4. Check whether `lib/features/<name>/` already exists.
-5. Render the `feature` brick (only passing the brick-declared `name` + `package_name` variables; class-name casing is handled by Mustache filters inside the brick).
-6. Write the module into `lib/core/di/injection_base.dart`'s `registerFeatureModules()` via `FeatureRegistration` (built on `CodeMod`).
-7. Run `build_runner`, building only the new module (`--build-filter lib/features/<name>/**.dart`).
+1. Load `fluzer.yaml` (or the compatible `flutter_zero_config.yaml`), validating `version` (a non-empty string with the `>= 1.0.0` lower bound) and `template_name`.
+2. Pick a **version adapter** by the project's `version` (AdapterCommand): if the version is outside the current CLI adapter's supported range, it errors "please upgrade fluzer" or "please upgrade the template/CLI"; otherwise it proceeds.
+3. Resolve the template source **pinned exactly** to the project `version` (the same-named entry from the registry).
+4. Validate the feature name (must be `snake_case`, starting with a lowercase letter, e.g. `user_profile`).
+5. Check whether `lib/features/<name>/` already exists.
+6. Render the `feature` brick (only passing the brick-declared `name` + `package_name` variables; class-name casing is handled by Mustache filters inside the brick).
+7. Write the module into `lib/core/di/injection_base.dart`'s `registerFeatureModules()` via `FeatureRegistration` (built on `CodeMod`).
+8. Run `build_runner`, building only the new module (`--build-filter lib/features/<name>/**.dart`).
 
 ```bash
 fluzer new user
-
-# options
-#   --build-runner      run build_runner after generation (enabled by default)
-#   --no-build-runner   skip build_runner (you can run dart run build_runner build later)
 ```
 
 > The generated module contains `data/`, `domain/`, `presentation/` skeletons and auto-generates `<name>_module.dart`.
@@ -227,7 +224,7 @@ Both `new` and `create` rely on `TemplateSourceResolver.resolve()` to decide whe
 
 1. **`FLUZER_BRICKS_DIR`** non-empty → `LocalBrickLoader` (local dev / debugging, points to the `bricks/` root).
 2. **`FLUZER_TEMPLATE_ZIP_URL`** non-empty → force `RemoteBrickLoader` of that URL (testing / debugging).
-3. Otherwise go to the **remote registry**: pull `template_registry.json` from `templateRegistryUrl`, and among records where `minCliVersion <= cliVersion` pick the zip URL with the largest `version`; the direct URL and every mirror prefix are **raced concurrently**, the first success wins and the rest are cancelled (timeouts: 30s for text / 180s for files). There is no "wait for the direct connection to time out, then fall back to mirrors" behavior.
+3. Otherwise go to the **remote registry**: pull `template_registry.json` from `templateRegistryUrl`; `create` simply picks the zip URL with the largest `version` (always the latest template, no longer filtered by `minCliVersion`), while `new` matches the project `version` exactly. For both `create`/`new` the direct URL and every mirror prefix are **raced concurrently**, the first success wins and the rest are cancelled (timeouts: 30s for text / 180s for files). There is no "wait for the direct connection to time out, then fall back to mirrors" behavior.
 
 ```bash
 # Local debug: read the local bricks directory directly
@@ -241,26 +238,26 @@ fluzer create demo
 
 `RemoteBrickLoader` caches the zip to the temp directory after download: when the registry version number is available it names the cache directory `template_<version>`; on env-var override / fallback it degrades to a URL-hash name; different versions don't overwrite each other, and path validation is done on extraction (Zip Slip protection).
 
-> **Required before release**: replace the `templateRegistryUrl` and `defaultTemplateZipUrl` placeholders (`https://github.com/<owner>/<repo>/...`) in `template_config.dart` with real addresses, and keep `cliVersion` in sync with `pubspec.yaml`. The registry uses a "compatibility bucket" structure; see [CLI Versioning](../versioning-cli.md).
+> **Required before release**: replace the `templateRegistryUrl` and `defaultTemplateZipUrl` placeholders (`https://github.com/<owner>/<repo>/...`) in `template_config.dart` with real addresses, and keep `cliVersion` in sync with `pubspec.yaml`. The registry is a `templates` version list (`version` + `url`); `create` picks the largest `version`, `new` matches the exact `version` — see [CLI Versioning](../versioning-cli.md).
 
 ---
 
-## 9. Config File `flutter_zero_config.yaml`
+## 9. Config File `fluzer.yaml` (compatible with `flutter_zero_config.yaml`)
 
-The `new` command depends on `flutter_zero_config.yaml` in the template project root. `ProjectConfig.load()` searches upward for this file and validates the project structure.
+The `new` / `gen-l10n` commands depend on `fluzer.yaml` in the template project root (the v2 config name; legacy projects using `flutter_zero_config.yaml` are still recognized). `ProjectConfig.load()` searches upward for either file name and validates.
 
 ```yaml
-version: 1.0.0            # template version, must be >= the minimum supported version (minimumSupportedVersion)
+version: 1.0.0            # template version (the template version this project was born from)
 template_name: flutter_zero
-minCliVersion: 1.0.0      # version-gate threshold used by create/new/gen-l10n; defaults to 0.0.0 when absent
 ```
 
 Validation:
 
-- `version` is a valid string and `>= minimumSupportedVersion` (the template-side minimum supported version).
+- `version` is a valid non-empty string and `>= 1.0.0` (the oldest template version the CLI accepts).
 - `template_name` must be exactly `flutter_zero`.
-- `minCliVersion` is a valid version string denoting the **minimum CLI version** able to run this template; when absent it is treated as `0.0.0` (i.e. no CLI restriction).
-- The root contains `pubspec.yaml` (reads `name` as `package_name`), `lib/`, and `lib/core/di/injection_base.dart`.
+- The root contains `pubspec.yaml` (reads `name` as `package_name`).
+
+> ⚠️ The `minCliVersion` field has been **removed**: the CLI no longer gates on `minCliVersion` in the config. Template/CLI compatibility is now decided by each command's "version adapter" based on the `version` range (see [Version Constraint Rules](../versioning-rules.md)). Internal structure (`lib/`, `lib/core/di/injection_base.dart`, ...) is also no longer validated here — the CLI aims to support all template versions, and structural differences are handled by each version adapter.
 
 Any unmet item throws `CliException` and aborts, prompting you to run it in the correct template project root.
 
@@ -276,11 +273,32 @@ fluzer/
 │   └── src/
 │       ├── fluzer.dart                 # CLI root controller (CommandRunner assembly + root exception fallback + UsageException help print)
 │       ├── commands/
-│       │   ├── create_command.dart     # create command (6-step flow + injection executor)
-│       │   ├── new_command.dart        # new command (version gate + render + register DI)
-│       │   ├── gen_l10n_command.dart   # gen-l10n command (orchestration: validate → generate → wire)
-│       │   ├── cache_command.dart      # cache command (list / clean cache)
-│       │   └── version_command.dart    # version command (injectable update check)
+│       │   ├── base_command.dart        # command base (arg collect + buildContext + execute + injection points)
+│       │   ├── command_context.dart     # command context base (carries version info)
+│       │   ├── command_adapter.dart     # version-adapter interface (spec / canHandle / run)
+│       │   ├── adapter_command.dart     # version-aware command base (read version → pick adapter → delegate)
+│       │   ├── new/                     # new command
+│       │   │   ├── new_command.dart     # entry (AdapterCommand, picks NewV1V2Adapter)
+│       │   │   ├── new_context.dart     # context
+│       │   │   └── adapters/
+│       │   │       ├── base_new_adapter.dart
+│       │   │       └── new_v1v2_adapter.dart   # 1.0.0+ adapter (pinned download by version)
+│       │   ├── gen_l10n/                # gen-l10n command
+│       │   │   ├── gen_l10n_command.dart
+│       │   │   ├── gen_l10n_context.dart
+│       │   │   └── adapters/
+│       │   │       ├── base_gen_l10n_adapter.dart
+│       │   │       └── gen_l10n_v1v2_adapter.dart  # 1.0.0+ shared adapter
+│       │   ├── create/                  # create command
+│       │   │   ├── create_command.dart  # 6-step flow + injection executor
+│       │   │   └── create_context.dart
+│       │   ├── cache/                   # cache command
+│       │   │   ├── cache_command.dart
+│       │   │   └── cache_context.dart
+│       │   └── version/                 # version command
+│       │       ├── version_command.dart
+│       │       ├── version_context.dart
+│       │       └── version_spec.dart    # RangeSpec / AnySpec version ranges
 │       ├── gen_l10n/
 │       │   ├── l10n_config.dart         # l10n.yaml parsing (arb-dir/output-dir/output-class)
 │       │   ├── l10n_parser.dart         # AppLocalizations parsing (class-body brace scanner + typed L10nParam)
@@ -300,6 +318,7 @@ fluzer/
 │       │   ├── brick_renderer.dart      # Mason render wrapper (BrickRenderer.generate)
 │       │   ├── feature_generator.dart   # feature module generator (render + call FeatureRegistration)
 │       │   ├── template_source.dart     # template source resolution: TemplateSourceResolver
+│       │   ├── template_version_reader.dart # project template version reader (TemplateVersionReader)
 │       │   ├── template_config.dart     # centralized config (actually under lib/src/config/): registry/zip URL, mirror prefixes, cache dir name
 │       │   └── semantic_version.dart    # SemVer parse & compare (actually under lib/src/util/)
 │       ├── http/
@@ -317,8 +336,8 @@ fluzer/
 │       │   ├── string_case.dart         # naming conversion utilities
 │       │   └── regular_utils.dart       # general utilities (e.g. extract version from URL)
 │       └── version/
-│           ├── version_check.dart       # pub.dev update check (available 24h / unavailable 10min cache)
-│           └── version_check_mixin.dart # ensureUpdateNotified: non-blocking startup update notice
+│           ├── version_check.dart        # pub.dev update check (available 24h / unavailable 10min cache)
+│           └── version_update_notifier.dart  # VersionUpdateNotifier: non-blocking startup update notice (new/gen-l10n/create opt in explicitly)
 ├── test/
 │   ├── fluzer_test.dart                 # command layer (create/new/version/cache) + version check + brick render
 │   ├── brick_test.dart                  # brick render smoke test
@@ -326,7 +345,7 @@ fluzer/
 │   ├── toast_handle_patcher_test.dart   # auto-wiring three-state / idempotency / safety tests
 │   ├── template_source_test.dart        # template source resolution (registry / exact pin / fallback)
 │   ├── version_check_test.dart          # update-check caching and degradation
-│   ├── version_check_mixin_test.dart    # startup update-notice behavior
+│   ├── version_update_notifier_test.dart # startup update-notice behavior (VersionUpdateNotifier)
 │   ├── http_client_test.dart            # HTTP download unit tests
 │   ├── race_http_client_test.dart       # concurrent race download unit tests
 │   ├── i18n_test.dart                   # interface strings loading & fallback
@@ -369,8 +388,8 @@ Inside the `flutter_zero_cli` directory use `dart run bin/fluzer.dart ...`, and 
 
 Both commands and the version check inject external implementations via typedef, for easy unit testing:
 
-- `CreateCommand`: `CreateFlutterCreateRunner` / `CreateFlutterPubGetRunner` / `CreateFlutterGenL10nRunner` / `BrickLoader` / `ProcessRunner` / `VersionCheckService` / `Translations`.
-- `NewCommand`: `BuildRunnerRunner` + `BrickLoader`.
+- `CreateCommand`: `ProcessRunner` (unified flutter/dart subprocess execution) / `BrickLoader` / `VersionCheckService` / `Translations`.
+- `NewCommand`: `ProcessRunner` + `BrickLoader`.
 - `VersionCommand`: `VersionCheckService` (`peekCachedUpdate()` / `checkForUpdate()`, queries pub.dev).
 
 ### Run tests
@@ -386,7 +405,7 @@ Coverage highlights: project-name / feature-name validation, target directory al
 
 ## 13. Common Troubleshooting
 
-- **`new` reports "flutter_zero_config.yaml not found"**: `cd` into the template project root (the one containing that file) before running.
+- **`new` reports "fluzer.yaml (or flutter_zero_config.yaml) not found"**: `cd` into the template project root (the one containing that file) before running.
 - **`create` reports "directory already exists"**: pick another project name; the existing directory will not be deleted.
 - **`version` keeps saying "cannot check for updates"**: the package is not yet published to pub.dev, or the network is restricted — this is a normal degradation and does not affect other commands.
 - **Template pull is slow / want to pin a version**: use `FLUZER_TEMPLATE_ZIP_URL` to specify a specific Release's zip link.

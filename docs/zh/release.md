@@ -4,7 +4,7 @@
 > 开发、验证与发布流程。
 >
 > **核心原则：模板与 CLI 解耦发布。** 模板可独立高频发版，CLI 在大多数情况下无需跟随发布；
-> 两者通过 `template_registry.json` 的兼容桶机制衔接。
+> 两者通过 `template_registry.json` 的版本列表衔接（`create` 取最大 `version`、`new` 精确匹配 `version`）。
 
 ---
 
@@ -21,7 +21,7 @@
 
 - **PATCH(0.0.x)** = 修 bug / 内容小修，不改契约 → CLI 躺着不动
 - **MINOR(0.x.0)** = 向下兼容新增（带默认值的可选变量、可选 brick） → CLI 躺着不动
-- **MAJOR(x.0.0)** = 破坏性（改 brick 变量契约 / 生成代码结构 / DI 锚点） → 必 bump `minCliVersion`
+- **MAJOR(x.0.0)** = 破坏性（改 brick 变量契约 / 生成代码结构 / DI 锚点） → 必新增版本适配器
 
 ---
 
@@ -109,9 +109,9 @@ dart test
    # 得到固定链接：
    # https://github.com/OWNER/REPO/releases/download/v1.0.1/bricks.zip
    ```
-4. **更新 `template_registry.json`**（兼容性桶规则）：
-   - **PATCH / MINOR** → 只更新当前 `minCliVersion` 桶条目的 `version` + `url`（不新增条目）
-   - **MAJOR** → 新增一条（新的 `minCliVersion`），旧条目保留
+4. **更新 `template_registry.json`**（版本列表，只需 `version` + `url`）：
+   - **PATCH / MINOR** → 更新对应 `version` 条目的 `url`（指向新 Release）
+   - **MAJOR** → 新增一条（新的 `version` + `url`），旧条目保留
 5. **推到 main**（保证 raw URL 稳定可达）：
    ```bash
    git add template_registry.json && git commit -m "chore: 更新模板注册表至 v1.0.1" && git push
@@ -124,13 +124,13 @@ dart test
 | 场景 | CLI 是否发版 |
 |------|------|
 | 模板 PATCH / MINOR | **不发**（registry 已指向新模板） |
-| 模板 MAJOR（要求更高 `minCliVersion`） | 若 CLI 注入逻辑需改，则发；否则仅 registry 约束生效 |
+| 模板 MAJOR（行为差异需新增适配器） | 若 CLI 侧需新增版本适配器，则发；否则仅 registry 更新即可 |
 | CLI 自身有改动 / bug 修复 / 新功能 | 发 |
 
 ### C3. 发布 CLI（仅当 C2 判定需要）
 
 1. 更新 `lib/src/config/template_config.dart` 的 `cliVersion` 常量（**必须与 `pubspec.yaml` 同步**）。
-2. 若模板 MAJOR，确认 `TemplateSourceResolver.resolve()` 的 `minCliVersion` 校验兼容。
+2. 若模板 MAJOR，确认对应命令（`new`/`gen-l10n`）的版本适配器已覆盖该模板版本。
 3. 重新跑 `dart analyze` + `dart test`。
 4. 发布：
    ```bash
@@ -152,7 +152,7 @@ dart test
 - [ ] 按 [模板版本管理](versioning-template.md) 判定 bump 类型
 - [ ] `bricks.zip` 已打包，顶层为 `bricks/`
 - [ ] GitHub Release 用**固定版本 URL**（非 `/latest`）
-- [ ] `template_registry.json` 已更新（PATCH/MINOR 改桶条目，MAJOR 新增条目）
+- [ ] `template_registry.json` 已更新（PATCH/MINOR 改对应条目 `url`，MAJOR 新增条目）
 - [ ] `template_registry.json` 已推到 main
 
 **CLI 发布前**
@@ -182,7 +182,7 @@ dart test
 
 > ⚠️ **禁止修改 `minimumSupportedVersion`**：该常量表示「CLI 能接受的最老模板版本门槛」，
 > 与 CLI 自身版本（`cliVersion`）无关。若顺手把它改成 CLI 版本，会错误排斥 `1.0.x` 等正常旧模板，
-> 破坏门禁。它应始终保持 `1.0.0` 不变。
+> 破坏版本下限校验。它应始终保持 `1.0.0` 不变。
 
 ### 3.2 命令速查
 

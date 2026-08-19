@@ -7,7 +7,7 @@
 | `BlocAwaitMixin` | `add(Event)` 是 fire-and-forget，UI 无法 `await` |
 | `BlocCancelTokenMixin` | 网络请求取消 / 去重，绑定 BLoC 生命周期 |
 | `BlocEffectMixin` | 一次性副作用通道（Toast / Loading / Dialog） |
-| `BlocErrorHandlerMixin` | 把底层异常归一化为 `AppException`，用 `Result<T>` 表达三态 |
+| `BlocErrorHandlerMixin` | 把异常包装为 `Result<T>`（成功 / 失败 / 取消），`Failure` 携带原始 `Exception` |
 
 统一导出：`import 'package:flutter_zero_app/core/bloc/bloc.dart';`
 
@@ -81,8 +81,8 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
       emit(state.copyWith(items: items));
     } catch (e) {
       if (isCancelled(e)) return; // 主动取消 → 静默，无需 import Dio
-      final ex = handleError(e); // 配合 BlocErrorHandlerMixin
-      if (ex != null) emitEffect(ex.toToastEffect());
+      final ex = e is Exception ? e : Exception(e.toString());
+      emitEffect(ex.toToastEffect());
     }
   }
 
@@ -122,9 +122,9 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
 
 ## 4. BlocErrorHandlerMixin —— 统一错误处理
 
-把底层异常（Dio 等）归一化为 `AppException`，并把结果包装成 `Result<T>`（成功 / 失败 / 取消）。
+把底层异步操作（Dio 等）的异常包装成 `Result<T>`（成功 / 失败 / 取消）。`Failure` **直接携带原始 `Exception`**——框架不做任何业务或文案假设，提示文案由 BLoC 自行决定（见 [错误处理与 Result](../architecture/error-handling.md)）。
 
-### 首选：`runToResult`
+### 首选：`runCatching`
 
 取代手写 `try/catch`，三态显式：
 
@@ -133,7 +133,7 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
     with BlocEffectMixin<ItemState>, BlocErrorHandlerMixin<ItemState> {
 
   Future<void> _onFetch(ItemFetch event, Emitter<ItemState> emit) async {
-    final result = await runToResult(() => _repository.fetchItems());
+    final result = await runCatching(() => _repository.fetchItems());
     result.when(
       success: (items) => emit(state.copyWith(items: items)),
       failure: (ex) => emitEffect(ex.toToastEffect()),
@@ -143,36 +143,16 @@ class ItemBloc extends Bloc<ItemEvent, ItemState>
 }
 ```
 
-### 回调式：`runWithErrorHandling`
-
-```dart
-await runWithErrorHandling(
-  () => _repository.fetchItems(),
-  onSuccess: (items) => emit(state.copyWith(items: items)),
-  onError: (ex) => emitEffect(ex.toToastEffect()),
-);
-```
+`runCatching` 的映射规则：成功 → `Success`；`Exception` → `Failure(e)`（原样保留）；主动取消 → `Cancel`；其余异常 → `Failure(Exception('unknown exception'))`。
 
 ### 能力清单
 
 | 方法 | 作用 |
 |------|------|
-| `runToResult<T>(action)` | 包裹异步操作，返回 `Result<T>`；取消 → `Cancel`，其余异常 → `Failure(AppException)` |
-| `runWithErrorHandling(action, onSuccess, onError)` | 回调式，出错/取消返回 `null` |
-| `handleError(error)` | 把任意原始异常转 `AppException`；取消返回 `null` |
-| `isCancelled(error)` | 判断是否主动取消（避免弹 Toast） |
-| `errorHandler`（可覆盖） | 注入自定义 `ServerMessageExtractor` 等策略 |
+| `runCatching<T>(action)` | 包裹异步操作，返回 `Result<T>`；取消 → `Cancel`，`Exception` → `Failure(e)`，其余 → `Failure(Exception('unknown exception'))` |
+| `isCancelled(error)` | 判断是否为主动取消（Dio 取消异常），用于避免弹 Toast |
 
-### 自定义错误策略
-
-若后端消息字段名不同，覆盖 `errorHandler`：
-
-```dart
-@override
-ErrorHandler get errorHandler => ErrorHandler(
-  serverMessageExtractor: ServerMessageExtractor(['msg', 'errorMessage']),
-);
-```
+> 取消判断默认按 Dio 的 `DioExceptionType.cancel`。使用其它 HTTP 客户端时，覆盖 `isCancelled` 即可。
 
 ---
 
@@ -192,7 +172,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
   Future<void> _onSubmit(LoginSubmit event, Emitter<LoginState> emit) async {
     emit(state.copyWith(isSubmitting: true));
     emitEffect(const LoadingEffect(show: true));
-    final result = await runToResult(
+    final result = await runCatching(
       () => repository.login(username: state.username, password: state.password),
     );
     emitEffect(const LoadingEffect(show: false));
@@ -207,7 +187,7 @@ class LoginBloc extends Bloc<LoginEvent, LoginState>
 
 - `BlocAwaitMixin` 让页面 `await submit()` 后能跳转。
 - `BlocEffectMixin` 发 Loading / Toast。
-- `BlocErrorHandlerMixin` 用 `runToResult` 消除 `try/catch`。
+- `BlocErrorHandlerMixin` 用 `runCatching` 消除 `try/catch`。
 - （取消场景）若需要，`BlocCancelTokenMixin` 的 `token('login')` 可中断登录请求。
 
 <!-- source-footer -->
